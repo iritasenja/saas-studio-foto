@@ -201,22 +201,6 @@ GRANT ALL ON TABLE public.addons TO authenticated;
 GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.addons TO service_role;
 
 
--- public.booking_number_sequences definition
-
--- Drop table
-
--- DROP TABLE public.booking_number_sequences;
-
-CREATE TABLE public.booking_number_sequences ( tenant_id uuid NOT NULL, "year" int4 NOT NULL, last_number int4 DEFAULT 0 NOT NULL, CONSTRAINT booking_number_sequences_last_number_check CHECK ((last_number >= 0)), CONSTRAINT booking_number_sequences_pkey PRIMARY KEY (tenant_id, year), CONSTRAINT booking_number_sequences_year_check CHECK ((year >= 2000)), CONSTRAINT booking_number_sequences_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE);
-ALTER TABLE public.booking_number_sequences ENABLE ROW LEVEL SECURITY;
-
--- Permissions
-
-ALTER TABLE public.booking_number_sequences OWNER TO postgres;
-GRANT ALL ON TABLE public.booking_number_sequences TO postgres;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.booking_number_sequences TO service_role;
-
-
 -- public.customers definition
 
 -- Drop table
