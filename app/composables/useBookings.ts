@@ -5,36 +5,40 @@ import type { Database } from "~/types/database.types";
 // ============================================================
 
 export type Booking = Database["public"]["Tables"]["bookings"]["Row"];
+
 export type BookingInsert = Database["public"]["Tables"]["bookings"]["Insert"];
+
 export type BookingUpdate = Database["public"]["Tables"]["bookings"]["Update"];
 
 export type Customer = Database["public"]["Tables"]["customers"]["Row"];
+
 export type Package = Database["public"]["Tables"]["packages"]["Row"];
+
 export type StudioRoom = Database["public"]["Tables"]["studio_rooms"]["Row"];
+
 export type StudioLocation =
   Database["public"]["Tables"]["studio_locations"]["Row"];
 
 export type BookingItem = Database["public"]["Tables"]["booking_items"]["Row"];
+
 export type BookingAssignee =
   Database["public"]["Tables"]["booking_assignees"]["Row"];
+
 export type BookingStatusHistory =
   Database["public"]["Tables"]["booking_status_history"]["Row"];
+
 export type BookingNote = Database["public"]["Tables"]["booking_notes"]["Row"];
+
 export type Employee = Database["public"]["Tables"]["employees"]["Row"];
+
+export type BookingStatus = Database["public"]["Enums"]["booking_status"];
+
+export type PaymentStatus = Database["public"]["Enums"]["payment_status"];
 
 // ============================================================
 // Booking With Relations
 // ============================================================
 
-/**
- * Data Booking untuk Booking List.
- *
- * Digunakan ketika kita membutuhkan informasi:
- * - Customer
- * - Package
- * - Room
- * - Location
- */
 export type BookingWithRelations = Booking & {
   customer: Customer | null;
   package: Package | null;
@@ -42,18 +46,14 @@ export type BookingWithRelations = Booking & {
   location: StudioLocation | null;
 };
 
-/**
- * Assignee Booking beserta data employee.
- */
+// ============================================================
+// Booking Detail
+// ============================================================
+
 export type BookingAssigneeWithEmployee = BookingAssignee & {
   employee: Employee | null;
 };
 
-/**
- * Data lengkap sebuah Booking.
- *
- * Digunakan pada halaman/detail booking.
- */
 export type BookingDetail = BookingWithRelations & {
   booking_items: BookingItem[];
   booking_assignees: BookingAssigneeWithEmployee[];
@@ -67,52 +67,76 @@ export type BookingDetail = BookingWithRelations & {
 
 export const useBookings = () => {
   const supabase = useSupabaseClient<Database>();
+
   const { tenantId } = useTenant();
 
   // ==========================================================
   // State
   // ==========================================================
 
-  /**
-   * State untuk Booking List.
-   */
   const bookings = useState<BookingWithRelations[]>("bookings", () => []);
 
-  /**
-   * State untuk detail Booking yang sedang dibuka.
-   */
   const currentBooking = useState<BookingDetail | null>(
     "current-booking",
     () => null,
   );
 
   const isLoading = useState<boolean>("bookings-loading", () => false);
+
   const error = useState<string | null>("bookings-error", () => null);
 
   // ==========================================================
-  // Helper RPC: Generate Booking Number
+  // Helpers
   // ==========================================================
-  async function generateBookingNumber(): Promise<string | null> {
-    if (!tenantId.value) return null;
 
-    try {
-      const { data, error: rpcError } = await supabase.rpc(
-        "generate_booking_number",
-        { p_tenant_id: tenantId.value },
-      );
-
-      if (rpcError) throw rpcError;
-      return data;
-    } catch (err) {
-      console.error("Generate booking number error:", err);
-      error.value =
-        err instanceof Error ? err.message : "Gagal me-generate nomor booking.";
-      return null;
+  function getErrorMessage(err: unknown, fallback: string): string {
+    if (err instanceof Error) {
+      return err.message;
     }
+
+    if (
+      typeof err === "object" &&
+      err !== null &&
+      "message" in err &&
+      typeof err.message === "string"
+    ) {
+      return err.message;
+    }
+
+    return fallback;
   }
 
+  /**
+   * Generate nomor booking sementara dari client.
+   *
+   * Format:
+   * BK-YYYYMMDD-HHMMSS-XXXX
+   *
+   * Contoh:
+   * BK-20260910-110530-A7K2
+   *
+   * Catatan:
+   * Mekanisme sequence database dapat menggantikan helper ini
+   * nanti melalui RPC PostgreSQL.
+   */
+  function generateBookingNumber(): string {
+    const now = new Date();
+
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    const seconds = String(now.getSeconds()).padStart(2, "0");
+    const milliseconds = String(now.getMilliseconds()).padStart(3, "0");
+
+    const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+
+    return `BK-${year}${month}${day}-${hours}${minutes}${seconds}${milliseconds}-${random}`;
+  }
   // ==========================================================
-  // 1. Load Booking List
+  // 1. Load Bookings
   // ==========================================================
 
   async function loadBookings() {
@@ -137,7 +161,9 @@ export const useBookings = () => {
         `,
         )
         .eq("tenant_id", tenantId.value)
-        .order("starts_at", { ascending: true });
+        .order("starts_at", {
+          ascending: true,
+        });
 
       if (bookingError) {
         throw bookingError;
@@ -149,8 +175,7 @@ export const useBookings = () => {
     } catch (err) {
       console.error("Load bookings error:", err);
 
-      error.value =
-        err instanceof Error ? err.message : "Gagal memuat booking.";
+      error.value = getErrorMessage(err, "Gagal memuat booking.");
 
       bookings.value = [];
 
@@ -170,6 +195,12 @@ export const useBookings = () => {
       return null;
     }
 
+    if (!id) {
+      error.value = "ID booking tidak valid.";
+      currentBooking.value = null;
+      return null;
+    }
+
     isLoading.value = true;
     error.value = null;
 
@@ -178,23 +209,19 @@ export const useBookings = () => {
         .from("bookings")
         .select(
           `
-          *,
-          customer:customers(*),
-          package:packages(*),
-          room:studio_rooms(*),
-          location:studio_locations(*),
-
-          booking_items(*),
-
-          booking_assignees(
             *,
-            employee:employees(*)
-          ),
-
-          booking_status_history(*),
-
-          booking_notes(*)
-        `,
+            customer:customers(*),
+            package:packages(*),
+            room:studio_rooms(*),
+            location:studio_locations(*),
+            booking_items(*),
+            booking_assignees(
+              *,
+              employee:employees(*)
+            ),
+            booking_status_history(*),
+            booking_notes(*)
+          `,
         )
         .eq("id", id)
         .eq("tenant_id", tenantId.value)
@@ -210,8 +237,7 @@ export const useBookings = () => {
     } catch (err) {
       console.error("Load booking detail error:", err);
 
-      error.value =
-        err instanceof Error ? err.message : "Gagal memuat detail booking.";
+      error.value = getErrorMessage(err, "Gagal memuat detail booking.");
 
       currentBooking.value = null;
 
@@ -222,56 +248,68 @@ export const useBookings = () => {
   }
 
   // ==========================================================
-  // 3. Add Booking
+  // 3. Get Booking
   // ==========================================================
+
+  async function getBooking(id: string) {
+    return loadBooking(id);
+  }
+
+  // ==========================================================
+  // 4. Add Booking
+  // ==========================================================
+
   async function addBooking(
     payload: Omit<BookingInsert, "tenant_id" | "booking_number"> & {
       booking_number?: string;
     },
   ) {
-    if (!tenantId.value) return null;
+    if (!tenantId.value) {
+      error.value = "Tenant aktif tidak ditemukan.";
+      return null;
+    }
 
     isLoading.value = true;
     error.value = null;
 
     try {
-      // Ambil via RPC jika booking_number tidak diset manual
-      const bookingNum =
-        payload.booking_number?.trim() || (await generateBookingNumber());
+      const bookingNumber =
+        payload.booking_number?.trim() || generateBookingNumber();
 
-      if (!bookingNum) {
-        throw new Error("Gagal membuat nomor booking.");
-      }
+      const insertPayload: BookingInsert = {
+        ...payload,
+        tenant_id: tenantId.value,
+        booking_number: bookingNumber,
+      };
 
       const { data, error: createError } = await supabase
         .from("bookings")
-        .insert({
-          ...payload,
-          booking_number: bookingNum,
-          tenant_id: tenantId.value,
-        })
+        .insert(insertPayload)
         .select(
           `
-          *,
-          customer:customers(*),
-          package:packages(*),
-          room:studio_rooms(*),
-          location:studio_locations(*)
-        `,
+            *,
+            customer:customers(*),
+            package:packages(*),
+            room:studio_rooms(*),
+            location:studio_locations(*)
+          `,
         )
         .single();
 
-      if (createError) throw createError;
-
-      if (data) {
-        bookings.value = [data as BookingWithRelations, ...bookings.value];
+      if (createError) {
+        throw createError;
       }
 
-      return data as BookingWithRelations;
+      const newBooking = data as BookingWithRelations;
+
+      bookings.value = [newBooking, ...bookings.value];
+
+      return newBooking;
     } catch (err) {
       console.error("Add booking error:", err);
-      error.value =
-        err instanceof Error ? err.message : "Gagal menambah booking.";
+
+      error.value = getErrorMessage(err, "Gagal menambah booking.");
+
       return null;
     } finally {
       isLoading.value = false;
@@ -279,7 +317,7 @@ export const useBookings = () => {
   }
 
   // ==========================================================
-  // 4. Update Booking
+  // 5. Update Booking
   // ==========================================================
 
   async function updateBooking(
@@ -287,6 +325,12 @@ export const useBookings = () => {
     payload: Omit<BookingUpdate, "tenant_id">,
   ) {
     if (!tenantId.value) {
+      error.value = "Tenant aktif tidak ditemukan.";
+      return null;
+    }
+
+    if (!id) {
+      error.value = "ID booking tidak valid.";
       return null;
     }
 
@@ -301,12 +345,12 @@ export const useBookings = () => {
         .eq("tenant_id", tenantId.value)
         .select(
           `
-          *,
-          customer:customers(*),
-          package:packages(*),
-          room:studio_rooms(*),
-          location:studio_locations(*)
-        `,
+            *,
+            customer:customers(*),
+            package:packages(*),
+            room:studio_rooms(*),
+            location:studio_locations(*)
+          `,
         )
         .single();
 
@@ -314,31 +358,32 @@ export const useBookings = () => {
         throw updateError;
       }
 
-      if (data) {
-        const updatedBooking = data as BookingWithRelations;
+      const updatedBooking = data as BookingWithRelations;
 
-        const index = bookings.value.findIndex((booking) => booking.id === id);
+      const index = bookings.value.findIndex((booking) => booking.id === id);
 
-        if (index !== -1) {
-          bookings.value[index] = updatedBooking;
-        }
-
-        // Jika sedang membuka detail booking yang sama,
-        // update juga currentBooking.
-        if (currentBooking.value?.id === id) {
-          currentBooking.value = {
-            ...currentBooking.value,
-            ...updatedBooking,
-          };
-        }
+      if (index !== -1) {
+        bookings.value[index] = updatedBooking;
       }
 
-      return data as BookingWithRelations;
+      /*
+       * Jika detail booking sedang dibuka,
+       * sinkronkan data utama.
+       *
+       * Detail relations tetap dipertahankan.
+       */
+      if (currentBooking.value?.id === id) {
+        currentBooking.value = {
+          ...currentBooking.value,
+          ...updatedBooking,
+        };
+      }
+
+      return updatedBooking;
     } catch (err) {
       console.error("Update booking error:", err);
 
-      error.value =
-        err instanceof Error ? err.message : "Gagal mengubah booking.";
+      error.value = getErrorMessage(err, "Gagal mengubah booking.");
 
       return null;
     } finally {
@@ -347,21 +392,37 @@ export const useBookings = () => {
   }
 
   // ==========================================================
-  // 5. Update Booking Status
+  // 6. Update Booking Status
   // ==========================================================
 
-  async function updateBookingStatus(id: string, status: Booking["status"]) {
+  async function updateBookingStatus(id: string, status: BookingStatus) {
     return updateBooking(id, {
       status,
     });
   }
 
   // ==========================================================
-  // 6. Delete Booking
+  // 7. Update Payment Status
+  // ==========================================================
+
+  async function updatePaymentStatus(id: string, paymentStatus: PaymentStatus) {
+    return updateBooking(id, {
+      payment_status: paymentStatus,
+    });
+  }
+
+  // ==========================================================
+  // 8. Delete Booking
   // ==========================================================
 
   async function deleteBooking(id: string) {
     if (!tenantId.value) {
+      error.value = "Tenant aktif tidak ditemukan.";
+      return false;
+    }
+
+    if (!id) {
+      error.value = "ID booking tidak valid.";
       return false;
     }
 
@@ -379,10 +440,8 @@ export const useBookings = () => {
         throw deleteError;
       }
 
-      // Hapus dari state list
       bookings.value = bookings.value.filter((booking) => booking.id !== id);
 
-      // Hapus dari detail jika sedang dibuka
       if (currentBooking.value?.id === id) {
         currentBooking.value = null;
       }
@@ -391,8 +450,7 @@ export const useBookings = () => {
     } catch (err) {
       console.error("Delete booking error:", err);
 
-      error.value =
-        err instanceof Error ? err.message : "Gagal menghapus booking.";
+      error.value = getErrorMessage(err, "Gagal menghapus booking.");
 
       return false;
     } finally {
@@ -401,7 +459,31 @@ export const useBookings = () => {
   }
 
   // ==========================================================
-  // 7. Clear State
+  // 9. Refresh
+  // ==========================================================
+
+  async function refreshBookings() {
+    return loadBookings();
+  }
+
+  // ==========================================================
+  // 10. Clear Current Booking
+  // ==========================================================
+
+  function clearCurrentBooking() {
+    currentBooking.value = null;
+  }
+
+  // ==========================================================
+  // 11. Clear Error
+  // ==========================================================
+
+  function clearError() {
+    error.value = null;
+  }
+
+  // ==========================================================
+  // 12. Clear All State
   // ==========================================================
 
   function clearBookings() {
@@ -421,11 +503,13 @@ export const useBookings = () => {
     isLoading,
     error,
 
-    // Booking List
+    // List
     loadBookings,
+    refreshBookings,
 
-    // Booking Detail
+    // Detail
     loadBooking,
+    getBooking,
 
     // CRUD
     addBooking,
@@ -434,8 +518,14 @@ export const useBookings = () => {
 
     // Status
     updateBookingStatus,
+    updatePaymentStatus,
 
-    // State
+    // Helpers
+    generateBookingNumber,
+
+    // State management
+    clearCurrentBooking,
+    clearError,
     clearBookings,
   };
 };
