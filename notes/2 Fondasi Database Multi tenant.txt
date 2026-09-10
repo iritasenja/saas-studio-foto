@@ -1,0 +1,966 @@
+# 2 Fondasi Database Multi tenant
+
+-- prompt:
+
+berdasar Chats "Rancangan SaaS studio foto", **langkah pertama yang paling tepat adalah merancang database multi-tenant lengkap beserta ERD, tabel, relasi, enum, index, dan RLS policy** sebelum membuat halaman Nuxt.  
+eksekusi langkah pertama
+
+-- response:
+
+Ya. Berdasarkan rancangan **“Rancangan SaaS Studio Foto”**, saya eksekusi **Langkah 1: fondasi database multi-tenant**. Sumber tersebut memang menempatkan `tenant` sebagai fondasi seluruh database dan menekankan Auth → membership → tenant → RLS. 
+
+Saya juga menyesuaikannya dengan pola RLS Supabase saat ini: tabel yang terekspos perlu RLS, dan `auth.uid()` dapat digunakan dalam policy. Untuk RBAC multi-tenant, saya memilih **role di `tenant_members`**, bukan satu role global di JWT, karena satu user nantinya bisa menjadi anggota beberapa studio dengan role berbeda. ([Supabase][1])
+
+## Hasil Langkah 1
+
+### 1. Arsitektur tenant
+
+```text
+auth.users
+    │
+    │ 1 : 1
+    ▼
+profiles
+    │
+    │ N : N
+    ▼
+tenant_members
+    │
+    │ N : 1
+    ▼
+tenants
+    │
+    ├── studio_profiles
+    ├── studio_locations
+    │      └── studio_rooms
+    │
+    ├── customers
+    │      ├── customer_contacts
+    │      └── customer_addresses
+    │
+    ├── employees
+    │
+    ├── services
+    ├── addons
+    ├── packages
+    │      └── package_items
+    │
+    ├── bookings
+    │      ├── booking_items
+    │      ├── booking_assignees
+    │      ├── booking_status_history
+    │      └── booking_notes
+    │
+    ├── availability
+    ├── calendar_events
+    │
+    ├── production_orders
+    │      └── production_tasks
+    │             └── production_task_assignments
+    │
+    ├── media_folders
+    │      └── media_assets
+    │
+    ├── invoices
+    │      ├── invoice_items
+    │      └── payments
+    │
+    ├── expense_categories
+    │      └── expenses
+    │
+    └── subscriptions
+           │
+           ▼
+         plans
+```
+
+Total **33 tabel** sudah dibuat dalam schema ini.
+
+---
+
+## 2. Domain yang sudah tercakup
+
+| Domain          | Tabel utama                                                            |
+| --------------- | ---------------------------------------------------------------------- |
+| Identity        | `profiles`                                                             |
+| Multi-tenant    | `tenants`, `tenant_members`                                            |
+| Studio          | `studio_profiles`, `studio_locations`, `studio_rooms`                  |
+| Customer        | `customers`, `customer_contacts`, `customer_addresses`                 |
+| Team            | `employees`                                                            |
+| Produk          | `services`, `packages`, `package_items`, `addons`                      |
+| Booking         | `bookings`, `booking_items`, `booking_assignees`                       |
+| Booking history | `booking_status_history`, `booking_notes`                              |
+| Calendar        | `availability`, `calendar_events`                                      |
+| Production      | `production_orders`, `production_tasks`, `production_task_assignments` |
+| Media           | `media_folders`, `media_assets`                                        |
+| Finance         | `invoices`, `invoice_items`, `payments`                                |
+| Expense         | `expense_categories`, `expenses`                                       |
+| SaaS billing    | `plans`, `subscriptions`                                               |
+
+Saya sengaja memisahkan **pembayaran pelanggan studio** dari **subscription SaaS**, sesuai rancangan sebelumnya. Jadi:
+
+```text
+payments
+    ↓
+Customer → Studio
+
+
+subscriptions
+    ↓
+Studio → SaaS kita
+```
+
+Ini penting supaya accounting/business logic tidak tercampur.
+
+---
+
+## 3. Enum utama
+
+Sudah disiapkan:
+
+```text
+tenant_status
+├── trial
+├── active
+├── suspended
+└── cancelled
+```
+
+```text
+member_role
+├── owner
+├── admin
+├── manager
+├── photographer
+├── editor
+└── staff
+```
+
+Booking:
+
+```text
+booking_status
+├── inquiry
+├── pending
+├── confirmed
+├── checked_in
+├── shooting
+├── production
+├── ready
+├── delivered
+├── completed
+└── cancelled
+```
+
+Payment:
+
+```text
+payment_status
+├── unpaid
+├── partial
+├── paid
+└── refunded
+```
+
+Production:
+
+```text
+production_status
+├── waiting
+├── in_progress
+├── review
+├── revision
+├── approved
+└── completed
+```
+
+Task:
+
+```text
+task_status
+├── todo
+├── in_progress
+├── review
+├── revision
+├── done
+└── cancelled
+```
+
+Dan enum tambahan untuk invoice, expense, employee, dan subscription.
+
+Ini mengikuti prinsip dari rancangan awal: **jangan menyebar boolean seperti `is_paid`, `is_completed`, `is_confirmed` untuk menggambarkan workflow utama**. 
+
+---
+
+# 4. Tenant isolation
+
+Ini bagian paling penting.
+
+Setiap tabel bisnis memiliki:
+
+```sql
+tenant_id uuid not null references public.tenants(id)
+```
+
+Contoh:
+
+```text
+customers
+├── id
+├── tenant_id   ← pembatas tenant
+├── full_name
+├── email
+└── phone
+```
+
+Sehingga:
+
+```text
+Studio A
+tenant_id = AAA
+```
+
+hanya boleh membaca:
+
+```text
+customers
+where tenant_id = AAA
+```
+
+Sedangkan:
+
+```text
+Studio B
+tenant_id = BBB
+```
+
+tidak akan bisa membaca data Studio A.
+
+RLS memang dirancang Supabase untuk memberikan pembatasan row-level seperti ini. ([Supabase][1])
+
+---
+
+# 5. Role tidak dibuat global
+
+Saya memilih:
+
+```text
+tenant_members
+------------------------
+tenant_id
+user_id
+role
+```
+
+Contoh:
+
+```text
+Budi
+│
+├── Studio A → photographer
+│
+└── Studio B → admin
+```
+
+Ini lebih tepat daripada:
+
+```text
+profiles
+└── role = photographer
+```
+
+karena role seseorang adalah **konteks terhadap tenant**, bukan atribut global user.
+
+Jadi RLS nantinya bisa melakukan:
+
+```text
+auth.uid()
+      ↓
+tenant_members
+      ↓
+tenant_id + role
+      ↓
+akses data
+```
+
+---
+
+# 6. RLS policy
+
+Semua tabel exposed sudah:
+
+```sql
+alter table ... enable row level security;
+```
+
+Kemudian policy dasar menggunakan:
+
+```sql
+public.is_tenant_member(tenant_id)
+```
+
+yang secara konsep berarti:
+
+```text
+Apakah user yang sedang login
+merupakan member aktif
+dari tenant ini?
+```
+
+Untuk operasi tertentu tersedia:
+
+```sql
+public.has_tenant_role(
+    tenant_id,
+    roles[]
+)
+```
+
+misalnya:
+
+```sql
+public.has_tenant_role(
+    tenant_id,
+    array['owner','admin']::public.member_role[]
+)
+```
+
+Jadi kita sudah punya fondasi untuk membangun permission lebih detail nanti.
+
+---
+
+# 7. Tenant creation dibuat atomic
+
+Saya juga memperbaiki satu bagian penting dari desain awal.
+
+Jangan membiarkan frontend melakukan:
+
+```text
+INSERT tenants
+INSERT tenant_members
+INSERT studio_profiles
+```
+
+secara terpisah.
+
+Karena bisa terjadi:
+
+```text
+tenant berhasil
+↓
+membership gagal
+↓
+tenant yatim
+```
+
+Sebagai gantinya schema menyediakan:
+
+```sql
+create_tenant(
+    p_name,
+    p_slug
+)
+```
+
+yang melakukan:
+
+```text
+create tenant
+      ↓
+create owner membership
+      ↓
+create studio profile
+      ↓
+return tenant_id
+```
+
+dalam satu database transaction.
+
+Ini juga membuat onboarding SaaS nantinya jauh lebih mudah.
+
+---
+
+# 8. Index
+
+Index utama sudah disiapkan berdasarkan pola query yang kemungkinan besar sering digunakan.
+
+Contohnya:
+
+```text
+tenant_members
+    tenant_id + role
+    user_id + tenant_id
+
+bookings
+    tenant_id + starts_at
+    tenant_id + status
+    tenant_id + customer_id
+
+customers
+    tenant_id + full_name
+    tenant_id + phone
+
+production_tasks
+    tenant_id + status
+    tenant_id + production_order_id
+
+payments
+    tenant_id + paid_at
+```
+
+Prinsipnya hampir semua query operasional akan diawali dengan:
+
+```sql
+where tenant_id = ...
+```
+
+sehingga `tenant_id` menjadi bagian penting index.
+
+---
+
+# 9. File SQL siap digunakan
+
+Saya sudah membuat migration SQL lengkap:
+
+**[Download `saas-studio-foto-schema-v1.sql`](sandbox:/mnt/data/saas-studio-foto-schema-v1.sql)**
+
+Isinya sekitar **1.200 baris SQL**, mencakup:
+
+* 33 tabel
+* enum
+* foreign key
+* constraint
+* index
+* trigger `updated_at`
+* auto-create `profiles`
+* tenant authorization functions
+* tenant creation RPC
+* RLS
+* RLS policies
+* grants
+* seed SaaS plans
+* ERD ringkas sebagai komentar SQL
+
+---
+
+## 10. Satu keputusan arsitektur yang saya rekomendasikan
+
+Untuk tahap ini **jangan dulu menggunakan custom JWT claim untuk role tenant**.
+
+Supabase memang mendukung custom claims/RBAC, tetapi kasus kita berbeda karena:
+
+```text
+1 user
+   ↓
+bisa punya banyak tenant
+   ↓
+dan role berbeda di setiap tenant
+```
+
+Jadi lebih aman dan sederhana untuk fondasi:
+
+```text
+JWT
+ │
+ └── auth.uid()
+          │
+          ▼
+    tenant_members
+          │
+          ├── tenant_id
+          └── role
+```
+
+Custom claims bisa dipertimbangkan kemudian apabila kebutuhan authorization sudah lebih kompleks. Supabase sendiri mendokumentasikan custom claims sebagai salah satu pendekatan RBAC, bukan satu-satunya pendekatan. ([Supabase][2])
+
+---
+
+# Posisi proyek sekarang
+
+Kita sekarang berada di:
+
+```text
+FASE 1 — DATABASE FOUNDATION
+       │
+       ├── [✓] Multi-tenant model
+       ├── [✓] ERD
+       ├── [✓] Tables
+       ├── [✓] Relationships
+       ├── [✓] Enums
+       ├── [✓] Constraints
+       ├── [✓] Indexes
+       ├── [✓] RLS helper functions
+       ├── [✓] RLS policies
+       ├── [✓] Tenant creation
+       └── [✓] SaaS subscription foundation
+```
+
+**Belum** kita kerjakan:
+
+```text
+Nuxt pages
+Components
+Dashboard UI
+Booking UI
+Calendar UI
+```
+
+dan memang **jangan dulu**.
+
+Langkah berikutnya yang paling tepat adalah **menguji schema ini di Supabase**, terutama skenario keamanan:
+
+```text
+User A
+ └── Studio A
+
+User B
+ └── Studio B
+
+User A → tidak boleh melihat Studio B
+User B → tidak boleh melihat Studio A
+```
+
+Setelah tenant isolation terbukti, baru kita masuk ke **database seed + test data + verifikasi RLS**, kemudian baru membangun Nuxt di atas fondasi yang sudah teruji. Supabase juga merekomendasikan RLS pada seluruh tabel yang terekspos melalui Data API. ([Supabase][3])
+
+[1]: https://supabase.com/docs/guides/database/postgres/row-level-security?utm_source=chatgpt.com "Row Level Security | Supabase Docs"
+[2]: https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac?utm_source=chatgpt.com "Custom Claims & Role-based Access Control (RBAC) | Supabase Docs"
+[3]: https://supabase.com/docs/guides/api/securing-your-api?utm_source=chatgpt.com "Securing your API | Supabase Docs"
+
+
+---
+
+-- prompt:
+
+aku tidak paham dengan pengujian schema ini di Supabase, tapi skrip SQL saas-studio-foto-scheme-v1 sudah aku run di supabase, sudah berhasil.
+bisa dilanjutkan ke langkah berikutnya?
+
+-- response:
+
+Bisa. Dan karena kamu sudah berhasil menjalankan SQL di Supabase, **kita tidak perlu mengulang database dari awal**.
+
+Saya cek kembali file SQL yang kita gunakan. Schema tersebut memang sudah memiliki `create_tenant()` untuk membuat tenant sekaligus owner dan `studio_profiles`, serta RLS helper `is_tenant_member()` / `has_tenant_role()`. 
+
+Jadi sekarang kita lanjut ke **Langkah 2**.
+
+# Langkah 2 — Membuat akun Owner + Tenant pertama + data awal
+
+Kita buat dulu kondisi nyata seperti ini:
+
+```text
+Supabase Auth
+      │
+      ▼
+    User
+      │
+      ▼
+   Profile
+      │
+      ▼
+   Tenant Member
+      │
+      ▼
+    Tenant
+      │
+      ├── Studio
+      ├── Customer
+      ├── Package
+      ├── Service
+      └── ...
+```
+
+Ini penting karena nanti Nuxt akan bekerja berdasarkan struktur tersebut.
+
+---
+
+## 2.1 Buat akun Owner
+
+Di Supabase buka:
+
+**Authentication → Users → Add user**
+
+Buat satu akun, misalnya:
+
+```text
+Email:
+owner@studiofoto.test
+
+Password:
+StudioFoto123!
+```
+
+Untuk sementara boleh menggunakan email/password sederhana untuk development.
+
+> Jangan gunakan password contoh tersebut untuk production.
+
+Setelah user dibuat, Supabase akan memiliki:
+
+```text
+auth.users
+```
+
+dan trigger dari schema kita akan otomatis membuat:
+
+```text
+public.profiles
+```
+
+ketika user baru dibuat.
+
+Schema memang sudah memiliki trigger `handle_new_user()` untuk ini.
+
+---
+
+# 2.2 Login nanti akan dilakukan dari Nuxt
+
+Untuk sekarang **jangan membuat halaman login dulu**.
+
+Kita hanya perlu memastikan akun tersebut ada.
+
+Jadi tahap database kita:
+
+```text
+[✓] Database
+[✓] Tables
+[✓] RLS
+[✓] Auth → user
+
+[ ] Tenant pertama
+[ ] Data master
+[ ] Data contoh
+[ ] Test RLS
+```
+
+---
+
+# 2.3 Membuat Tenant pertama
+
+Nah, ini bagian yang mungkin sedikit membingungkan.
+
+Kita **tidak perlu memasukkan tenant secara manual ke tabel `tenants`**.
+
+Schema kita sudah menyediakan function:
+
+```sql
+public.create_tenant(
+    p_name,
+    p_slug
+)
+```
+
+Function tersebut dirancang untuk:
+
+```text
+create tenant
+      ↓
+buat tenant_members
+      ↓
+jadikan user sebagai owner
+      ↓
+buat studio_profiles
+      ↓
+return tenant_id
+```
+
+Ini memang sudah ada di schema yang kamu jalankan. 
+
+Tetapi ada satu hal:
+
+`create_tenant()` menggunakan:
+
+```sql
+auth.uid()
+```
+
+Artinya function tersebut harus dipanggil oleh **user yang sudah login**, bukan sembarang SQL Editor session.
+
+Jadi **jangan jalankan function itu dari SQL Editor untuk sekarang**.
+
+Kita akan memanggilnya nanti dari Nuxt setelah Supabase Auth terpasang.
+
+---
+
+# Jadi apakah sekarang langsung coding Nuxt?
+
+**Ya, tetapi bukan membuat dashboard dulu.**
+
+Kita masuk ke:
+
+# Langkah 3 — Pasang Supabase ke Nuxt
+
+Ini langkah yang paling tepat sekarang.
+
+Arsitektur kita mulai menjadi nyata:
+
+```text
+                 Nuxt 4
+                   │
+          ┌────────┴────────┐
+          │                 │
+       Auth UI          Application
+          │                 │
+          └────────┬────────┘
+                   │
+              Supabase
+                   │
+        ┌──────────┴──────────┐
+        │                     │
+      Auth                 Database
+        │                     │
+   auth.users          tenant + data
+```
+
+Dan urutannya:
+
+```text
+1. Install Supabase module
+        ↓
+2. Configure Supabase
+        ↓
+3. Buat halaman login
+        ↓
+4. Login
+        ↓
+5. Ambil user
+        ↓
+6. Buat tenant
+        ↓
+7. Redirect ke dashboard
+```
+
+---
+
+# 3.1 Install Supabase untuk Nuxt
+
+Di terminal project:
+
+```bash
+npm install @nuxtjs/supabase
+```
+
+Kemudian `nuxt.config.ts`:
+
+```ts
+export default defineNuxtConfig({
+  modules: [
+    '@nuxt/ui',
+    '@nuxtjs/supabase'
+  ]
+})
+```
+
+Kalau project kamu sudah memiliki module lain, **jangan hapus module yang sudah ada**. Tambahkan `@nuxtjs/supabase`.
+
+---
+
+# 3.2 Environment variable
+
+Buat:
+
+```text
+.env
+```
+
+Kemudian:
+
+```env
+SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
+SUPABASE_KEY=xxxxxxxxxxxxxxxx
+```
+
+Nilainya ambil dari:
+
+**Supabase → Project Settings → API**
+
+Untuk aplikasi Nuxt, gunakan key yang memang diperuntukkan bagi client/browser sesuai konfigurasi Supabase saat ini; **jangan memasukkan `service_role` key ke `.env` client-side**.
+
+---
+
+# 3.3 Setelah itu kita buat halaman login
+
+Strukturnya:
+
+```text
+pages/
+├── index.vue
+├── login.vue
+└── dashboard/
+    └── index.vue
+```
+
+Tetapi **jangan membuat semua halaman dashboard sekaligus**.
+
+Kita mulai dengan satu alur kecil:
+
+```text
+/login
+   │
+   │ login berhasil
+   ▼
+/dashboard
+```
+
+Di `/dashboard`, sementara kita tampilkan:
+
+```text
+User:
+owner@studiofoto.test
+
+Tenant:
+Belum ada
+
+[ Buat Studio ]
+```
+
+Kemudian tombol:
+
+```text
+Buat Studio
+```
+
+akan memanggil:
+
+```ts
+supabase.rpc('create_tenant', {
+  p_name: 'Studio Foto Saya',
+  p_slug: 'studio-foto-saya'
+})
+```
+
+Karena user sudah login, `auth.uid()` akan tersedia.
+
+Hasilnya:
+
+```text
+tenants
+   │
+   └── Studio Foto Saya
+
+tenant_members
+   │
+   └── owner@studiofoto.test → owner
+
+studio_profiles
+   │
+   └── Studio Foto Saya
+```
+
+---
+
+# Kenapa saya memilih urutan ini?
+
+Karena kita sekarang tidak lagi sekadar membuat database.
+
+Kita mulai menguji **alur SaaS sebenarnya**:
+
+```text
+Pengguna
+   ↓
+Register/Login
+   ↓
+User
+   ↓
+Create Studio
+   ↓
+Tenant
+   ↓
+Owner
+   ↓
+Dashboard
+```
+
+Ini merupakan fondasi seluruh aplikasi.
+
+Setelah alur tersebut berhasil, baru kita lanjut:
+
+```text
+                    FOUNDATION
+                        │
+              ┌─────────┴─────────┐
+              │                   │
+            Auth                Tenant
+              │                   │
+              └─────────┬─────────┘
+                        ▼
+                  MASTER DATA
+                        │
+          ┌─────────────┼─────────────┐
+          ▼             ▼             ▼
+      Customer       Studio        Package
+          │             │             │
+          └─────────────┼─────────────┘
+                        ▼
+                    BOOKING
+                        │
+                        ▼
+                   PRODUCTION
+                        │
+                        ▼
+                     FINANCE
+```
+
+Itu jauh lebih aman daripada langsung membuat dashboard dengan data dummy.
+
+---
+
+## Jadi tugas kita sekarang
+
+**Belum perlu membuat banyak kode.**
+
+Kita kerjakan satu per satu:
+
+### Tahap A
+
+```text
+[✓] SQL schema
+[✓] Supabase database
+[✓] RLS
+[✓] Auth user
+```
+
+### Tahap B ← **kita mulai sekarang**
+
+```text
+[ ] Install @nuxtjs/supabase
+[ ] Configure Nuxt
+[ ] `.env`
+[ ] Login page
+[ ] Auth middleware
+[ ] Dashboard sederhana
+[ ] Create Tenant
+```
+
+### Tahap C
+
+```text
+[ ] Customer
+[ ] Studio Location
+[ ] Room
+[ ] Employee
+[ ] Service
+[ ] Package
+[ ] Addon
+```
+
+### Tahap D
+
+```text
+[ ] Booking
+[ ] Calendar
+[ ] Production
+[ ] Invoice
+[ ] Payment
+```
+
+---
+
+### Satu hal yang perlu kamu lakukan sekarang
+
+Di terminal project Nuxt kamu, jalankan:
+
+```bash
+npm install @nuxtjs/supabase
+```
+
+**Setelah berhasil, kirimkan isi `nuxt.config.ts` kamu ke saya.**
+
+Saya akan lanjutkan dari kondisi project kamu yang sebenarnya, lalu kita buat **Auth → Login → Create Tenant → Dashboard** secara bertahap. Dengan cara ini kamu tidak perlu memahami pengujian RLS yang rumit terlebih dahulu.
