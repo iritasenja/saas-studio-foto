@@ -1,0 +1,969 @@
+# 1 rancangan saas asisten studio foto
+
+-- prompt:
+
+Ide: Membuat web SaaS multi tenant untuk manajemen operasional di dalam Studio Foto  lengkap — frontend, backend, dan semua integrasi yang dibutuhkan.
+
+Stack:
+```json
+// package.json
+{
+  "name": "05-saas-studio-nuxtui",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@nuxt/ui": "^4.9.0",
+    "@nuxtjs/supabase": "^2.0.9",
+    "nuxt": "^4.4.8",
+    "tailwindcss": "^4.3.2",
+    "vue": "^3.5.38",
+    "vue-router": "^5.1.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@iconify-json/lucide": "^1.2.116"
+  }
+}
+```
+
+-- Response:
+
+Ide ini **sangat cocok** dengan stack yang kamu pilih. Untuk SaaS Studio Foto, saya akan membangunnya sebagai **multi-tenant operational system**, bukan sekadar aplikasi booking.
+
+Dengan Nuxt 4 + Nuxt UI 4 + Supabase, arsitekturnya bisa dibuat cukup lengkap tanpa menambah banyak layanan eksternal di tahap awal.
+
+## 1. Gambaran besar sistem
+
+Saya akan membagi SaaS menjadi beberapa area:
+
+```text
+                    ┌──────────────────────┐
+                    │      SaaS Studio     │
+                    │   Nuxt 4 + Nuxt UI   │
+                    └──────────┬───────────┘
+                               │
+                 ┌─────────────┴─────────────┐
+                 │                           │
+           Frontend Web                 Server/API
+           Nuxt Pages                  Nuxt Server
+                 │                           │
+                 └─────────────┬─────────────┘
+                               │
+                       ┌───────▼───────┐
+                       │   Supabase    │
+                       ├───────────────┤
+                       │ PostgreSQL    │
+                       │ Auth          │
+                       │ Storage       │
+                       │ RLS           │
+                       │ Realtime      │
+                       │ Edge Function │
+                       └───────────────┘
+```
+
+Satu hal penting: **tenant harus menjadi fondasi seluruh database**, bukan fitur yang ditambahkan belakangan.
+
+---
+
+# 2. Konsep multi-tenant
+
+Misalnya SaaS digunakan oleh:
+
+```text
+Studio A
+├── Owner
+├── Admin
+├── Fotografer
+├── Editor
+└── Staff
+
+Studio B
+├── Owner
+├── Admin
+└── Fotografer
+
+Studio C
+├── Owner
+└── Admin
+```
+
+User bisa memiliki hubungan dengan satu atau lebih studio.
+
+Saya lebih menyarankan model:
+
+```text
+auth.users
+     │
+     ▼
+profiles
+     │
+     ▼
+tenant_members
+     │
+     ▼
+tenants
+```
+
+Daripada membuat:
+
+```text
+users
+studio_a_users
+studio_b_users
+studio_c_users
+```
+
+Karena yang kedua akan menyulitkan perkembangan sistem.
+
+---
+
+# 3. Struktur domain bisnis
+
+Untuk studio foto, saya akan membagi database menjadi beberapa domain.
+
+### Tenant
+
+```text
+tenants
+tenant_members
+roles
+```
+
+### Customer
+
+```text
+customers
+customer_contacts
+customer_addresses
+```
+
+### Studio
+
+```text
+studio_profiles
+studio_locations
+studio_rooms
+studio_assets
+```
+
+### Paket & layanan
+
+```text
+packages
+package_items
+services
+addons
+```
+
+### Booking
+
+```text
+bookings
+booking_items
+booking_status_history
+booking_notes
+```
+
+### Jadwal
+
+```text
+availability
+schedules
+calendar_events
+```
+
+### Tim
+
+```text
+employees
+employee_roles
+employee_schedules
+```
+
+### Produksi
+
+```text
+production_orders
+production_tasks
+production_task_assignments
+```
+
+### Foto / file
+
+```text
+media
+media_folders
+media_assets
+```
+
+### Pembayaran
+
+```text
+invoices
+invoice_items
+payments
+payment_methods
+```
+
+### Pengeluaran
+
+```text
+expenses
+expense_categories
+```
+
+### Laporan
+
+Tidak harus memiliki tabel khusus pada tahap awal. Banyak laporan bisa dibuat menggunakan PostgreSQL query/view.
+
+---
+
+# 4. Contoh alur bisnis utama
+
+Misalnya pelanggan bernama Andi ingin melakukan sesi foto.
+
+```text
+Customer
+   │
+   ▼
+Pilih Package
+   │
+   ▼
+Booking
+   │
+   ├── tanggal
+   ├── jam
+   ├── studio
+   ├── fotografer
+   ├── package
+   └── addons
+   │
+   ▼
+Invoice
+   │
+   ▼
+DP / Payment
+   │
+   ▼
+Session
+   │
+   ▼
+Production
+   │
+   ├── Photo selection
+   ├── Editing
+   ├── Retouch
+   └── Finalization
+   │
+   ▼
+Delivery
+   │
+   ▼
+Completed
+```
+
+Ini nantinya menjadi **workflow utama SaaS**.
+
+---
+
+# 5. Booking jangan dibuat terlalu sederhana
+
+Misalnya:
+
+```text
+bookings
+```
+
+jangan hanya:
+
+```text
+id
+customer_id
+date
+time
+status
+```
+
+Saya akan membuat konsep seperti:
+
+```text
+booking
+├── customer
+├── location
+├── room
+├── package
+├── addons
+├── photographer
+├── assistants
+├── schedule
+├── payment
+├── production
+└── notes
+```
+
+Karena satu booking bisa memiliki banyak komponen.
+
+Contoh:
+
+```text
+BOOK-2026-00125
+
+Customer:
+Andi
+
+Package:
+Prewedding Premium
+
+Date:
+2026-09-12
+
+Room:
+Studio A
+
+Photographer:
+Budi
+
+Addons:
+- Extra 10 edited photos
+- Album
+- Canvas
+
+Payment:
+Rp 1.500.000 / Rp 3.500.000
+
+Production:
+Editing → In Progress
+```
+
+---
+
+# 6. Status booking
+
+Jangan menggunakan boolean seperti:
+
+```text
+is_completed
+is_paid
+is_confirmed
+```
+
+untuk seluruh workflow.
+
+Lebih baik gunakan status.
+
+Misalnya:
+
+```text
+inquiry
+pending
+confirmed
+checked_in
+shooting
+production
+ready
+delivered
+completed
+cancelled
+```
+
+Kemudian payment memiliki status sendiri:
+
+```text
+unpaid
+partial
+paid
+refunded
+```
+
+Production juga memiliki status sendiri:
+
+```text
+waiting
+in_progress
+review
+revision
+approved
+completed
+```
+
+Ini akan jauh lebih fleksibel.
+
+---
+
+# 7. Role & permission
+
+Saya akan menggunakan RBAC.
+
+Contohnya:
+
+| Role         | Akses                 |
+| ------------ | --------------------- |
+| Owner        | Semua                 |
+| Admin        | Operasional           |
+| Manager      | Operasional + laporan |
+| Photographer | Booking + shooting    |
+| Editor       | Production            |
+| Staff        | Operasional terbatas  |
+
+Tetapi jangan membuat permission hanya di frontend.
+
+Misalnya:
+
+```vue
+if (user.role === 'owner') {
+   ...
+}
+```
+
+itu hanya untuk UI.
+
+Keamanan sebenarnya harus berada di:
+
+**Supabase Row Level Security (RLS).**
+
+Contohnya konsep:
+
+```text
+User
+ │
+ ▼
+tenant_members
+ │
+ ▼
+tenant_id
+ │
+ ▼
+RLS
+ │
+ ▼
+Data tenant
+```
+
+Sehingga:
+
+```text
+Studio A
+```
+
+tidak pernah bisa membaca:
+
+```text
+Studio B
+```
+
+meskipun seseorang memanipulasi request API.
+
+---
+
+# 8. Supabase sangat cocok untuk ini
+
+Stack kamu:
+
+```text
+Nuxt 4
+Nuxt UI 4
+Supabase
+Zod
+Tailwind CSS
+```
+
+sudah cukup untuk MVP yang serius.
+
+Supabase memberikan:
+
+### Auth
+
+```text
+Email/password
+Google
+Magic link
+```
+
+### Database
+
+```text
+PostgreSQL
+```
+
+### Security
+
+```text
+RLS
+```
+
+### File
+
+```text
+Storage
+```
+
+Cocok untuk:
+
+```text
+foto
+invoice
+dokumen
+logo studio
+hasil editing
+```
+
+### Realtime
+
+Bisa digunakan untuk:
+
+```text
+booking calendar
+production status
+notification
+dashboard
+```
+
+---
+
+# 9. Storage perlu dirancang dari awal
+
+Jangan membuat storage seperti:
+
+```text
+/photos
+```
+
+Karena multi-tenant.
+
+Lebih aman secara konsep:
+
+```text
+tenant/
+    {tenant_id}/
+        customers/
+        bookings/
+        production/
+        invoices/
+        studio/
+```
+
+Contoh:
+
+```text
+tenant/
+  7f8a.../
+    bookings/
+      BOOK-2026-00125/
+        raw/
+        selected/
+        edited/
+        final/
+```
+
+Dengan begitu storage juga mengikuti tenant.
+
+---
+
+# 10. Dashboard
+
+Dashboard utama menurut saya harus menunjukkan **kondisi operasional studio**, bukan sekadar statistik.
+
+Misalnya:
+
+```text
+┌───────────────────────────────────────────┐
+│ Good Morning, Admin                       │
+├───────────┬───────────┬───────────┬───────┤
+│ Booking   │ Today's   │ Revenue   │ Tasks │
+│ 24        │ 8         │ Rp12.5jt  │ 17    │
+├───────────┴───────────┴───────────┴───────┤
+│                                           │
+│ Today's Schedule                          │
+│                                           │
+│ 09:00  Prewedding      Budi               │
+│ 11:00  Family          Andi               │
+│ 14:00  Product Shoot  Citra              │
+│                                           │
+├───────────────────────────────────────────┤
+│ Production Queue                          │
+│                                           │
+│ Editing       5                           │
+│ Review        3                           │
+│ Revision      2                           │
+└───────────────────────────────────────────┘
+```
+
+Ini akan terasa seperti **operational dashboard**, bukan aplikasi CRUD.
+
+---
+
+# 11. Struktur Nuxt
+
+Saya akan menghindari membuat semua halaman langsung di `pages/`.
+
+Misalnya:
+
+```text
+app/
+├── components/
+│   ├── booking/
+│   ├── customer/
+│   ├── production/
+│   ├── payment/
+│   ├── studio/
+│   └── dashboard/
+│
+├── composables/
+│   ├── useTenant.ts
+│   ├── useAuth.ts
+│   ├── useBooking.ts
+│   ├── useCustomer.ts
+│   └── usePermission.ts
+│
+├── layouts/
+│   ├── default.vue
+│   ├── dashboard.vue
+│   └── auth.vue
+│
+├── middleware/
+│   ├── auth.ts
+│   ├── tenant.ts
+│   └── role.ts
+│
+├── pages/
+│   ├── index.vue
+│   ├── login.vue
+│   │
+│   └── dashboard/
+│       ├── index.vue
+│       ├── bookings/
+│       ├── customers/
+│       ├── calendar/
+│       ├── production/
+│       ├── payments/
+│       ├── expenses/
+│       ├── reports/
+│       └── settings/
+│
+├── server/
+│   ├── api/
+│   ├── services/
+│   └── utils/
+│
+└── types/
+    ├── auth.ts
+    ├── tenant.ts
+    ├── booking.ts
+    ├── customer.ts
+    ├── production.ts
+    └── payment.ts
+```
+
+---
+
+# 12. Nuxt Server jangan diabaikan
+
+Walaupun Supabase menyediakan API, saya tidak akan menjadikan browser berkomunikasi langsung dengan semua layanan eksternal.
+
+Gunakan:
+
+```text
+Browser
+   │
+   ▼
+Nuxt
+   │
+   ├── Supabase
+   ├── Payment Gateway
+   ├── WhatsApp provider
+   ├── Email
+   └── Storage
+```
+
+Misalnya pembayaran:
+
+```text
+Browser
+   │
+   │ POST /api/payments/create
+   ▼
+Nuxt Server
+   │
+   ▼
+Payment Gateway
+```
+
+API key/payment secret tetap di server.
+
+---
+
+# 13. Integrasi yang mungkin dibutuhkan
+
+Tidak semuanya harus dibuat sejak MVP.
+
+### Tahap awal
+
+```text
+Supabase Auth
+Supabase Database
+Supabase Storage
+Supabase RLS
+```
+
+### Tahap berikutnya
+
+```text
+Email
+WhatsApp
+Payment Gateway
+Google Calendar
+```
+
+Untuk Indonesia, pembayaran bisa diarahkan ke gateway seperti:
+
+```text
+Midtrans
+Xendit
+Tripay
+```
+
+dan notifikasi:
+
+```text
+WhatsApp
+Email
+```
+
+Tetapi saya akan membuat abstraction layer supaya aplikasi tidak bergantung langsung pada satu provider.
+
+Contoh:
+
+```ts
+interface PaymentProvider {
+  createPayment()
+  getPaymentStatus()
+  refundPayment()
+}
+```
+
+Kemudian:
+
+```text
+MidtransProvider
+XenditProvider
+```
+
+bisa mengikuti interface yang sama.
+
+---
+
+# 14. SaaS billing adalah domain berbeda
+
+Ini juga penting.
+
+Jangan mencampur:
+
+```text
+customer payment
+```
+
+dengan:
+
+```text
+studio SaaS subscription
+```
+
+Karena keduanya berbeda.
+
+### Customer payment
+
+```text
+Studio → menerima uang dari pelanggan
+```
+
+### SaaS subscription
+
+```text
+Studio → membayar SaaS kepada kamu
+```
+
+Jadi nanti:
+
+```text
+tenant
+   │
+   ├── bookings
+   ├── customers
+   ├── invoices
+   └── payments
+
+subscription
+   │
+   └── tenant
+```
+
+Misalnya paket:
+
+```text
+Free
+Starter
+Professional
+Enterprise
+```
+
+Ini bisa ditambahkan setelah core operational system stabil.
+
+---
+
+# 15. Roadmap pengembangan
+
+Saya justru **tidak menyarankan langsung membuat semuanya**.
+
+Urutannya lebih aman:
+
+### Phase 1 — Foundation
+
+```text
+Nuxt
+Supabase
+Auth
+Tenant
+Tenant Member
+Role
+RLS
+Dashboard shell
+```
+
+### Phase 2 — Master Data
+
+```text
+Customer
+Studio
+Room
+Employee
+Package
+Service
+Addon
+```
+
+### Phase 3 — Booking
+
+```text
+Booking
+Calendar
+Availability
+Booking status
+Booking detail
+```
+
+### Phase 4 — Financial
+
+```text
+Invoice
+Payment
+Expense
+Cashflow
+```
+
+### Phase 5 — Production
+
+```text
+Production order
+Tasks
+Assignment
+Editing
+Revision
+Delivery
+```
+
+### Phase 6 — Notification
+
+```text
+Email
+WhatsApp
+Internal notification
+```
+
+### Phase 7 — Integration
+
+```text
+Payment gateway
+Google Calendar
+Storage optimization
+```
+
+### Phase 8 — SaaS
+
+```text
+Subscription
+Plan
+Feature limits
+Billing
+Tenant settings
+Usage
+```
+
+---
+
+## 16. Hal paling penting sebelum coding
+
+Menurut saya **jangan mulai dari UI dashboard**.
+
+Mulai dari desain:
+
+```text
+TENANT
+   ↓
+USER
+   ↓
+MEMBERSHIP
+   ↓
+ROLE
+   ↓
+PERMISSION
+```
+
+kemudian:
+
+```text
+TENANT
+ ├── CUSTOMER
+ ├── STUDIO
+ │    ├── LOCATION
+ │    └── ROOM
+ │
+ ├── PACKAGE
+ ├── SERVICE
+ │
+ ├── BOOKING
+ │    ├── BOOKING ITEM
+ │    ├── SCHEDULE
+ │    └── PAYMENT
+ │
+ └── PRODUCTION
+      ├── TASK
+      ├── ASSIGNMENT
+      └── MEDIA
+```
+
+Kalau **model data + tenant isolation + RLS** sudah benar, frontend bisa dikembangkan secara bertahap tanpa perlu bongkar fondasi.
+
+Dan melihat stack yang sudah kamu gunakan, saya akan mempertahankan:
+
+```text
+Nuxt 4
++
+Nuxt UI 4
++
+Tailwind CSS 4
++
+Supabase
++
+Zod
+```
+
+untuk core aplikasi. **Tidak perlu menambah ORM dulu**; Supabase + PostgreSQL sudah cukup. ORM bisa dipertimbangkan nanti kalau kebutuhan server-side domain logic memang sudah kompleks.
+
+Kalau proyek ini kita lanjutkan, **langkah pertama yang paling tepat adalah merancang database multi-tenant lengkap beserta ERD, tabel, relasi, enum, index, dan RLS policy** sebelum membuat halaman Nuxt.
