@@ -106,35 +106,6 @@ export const useBookings = () => {
     return fallback;
   }
 
-  /**
-   * Generate nomor booking sementara dari client.
-   *
-   * Format:
-   * BK-YYYYMMDD-HHMMSS-XXXX
-   *
-   * Contoh:
-   * BK-20260910-110530-A7K2
-   *
-   * Catatan:
-   * Mekanisme sequence database dapat menggantikan helper ini
-   * nanti melalui RPC PostgreSQL.
-   */
-  function generateBookingNumber(): string {
-    const now = new Date();
-
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
-
-    const hours = String(now.getHours()).padStart(2, "0");
-    const minutes = String(now.getMinutes()).padStart(2, "0");
-    const seconds = String(now.getSeconds()).padStart(2, "0");
-    const milliseconds = String(now.getMilliseconds()).padStart(3, "0");
-
-    const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-
-    return `BK-${year}${month}${day}-${hours}${minutes}${seconds}${milliseconds}-${random}`;
-  }
   // ==========================================================
   // 1. Load Bookings
   // ==========================================================
@@ -260,9 +231,7 @@ export const useBookings = () => {
   // ==========================================================
 
   async function addBooking(
-    payload: Omit<BookingInsert, "tenant_id" | "booking_number"> & {
-      booking_number?: string;
-    },
+    payload: Omit<BookingInsert, "tenant_id" | "booking_number">,
   ) {
     if (!tenantId.value) {
       error.value = "Tenant aktif tidak ditemukan.";
@@ -273,34 +242,89 @@ export const useBookings = () => {
     error.value = null;
 
     try {
-      const bookingNumber =
-        payload.booking_number?.trim() || generateBookingNumber();
+      // ======================================================
+      // Database menjadi sumber pembuatan booking number.
+      //
+      // create_booking() bertanggung jawab untuk:
+      // - validasi tenant
+      // - validasi customer
+      // - validasi package
+      // - validasi location
+      // - validasi room
+      // - generate booking_number
+      // - insert booking
+      // ======================================================
 
-      const insertPayload: BookingInsert = {
-        ...payload,
-        tenant_id: tenantId.value,
-        booking_number: bookingNumber,
-      };
+      const { data, error: createError } = await supabase.rpc(
+        "create_booking",
+        {
+          p_tenant_id: tenantId.value,
+          p_customer_id: payload.customer_id,
+          p_starts_at: payload.starts_at,
 
-      const { data, error: createError } = await supabase
-        .from("bookings")
-        .insert(insertPayload)
-        .select(
-          `
+          p_package_id: payload.package_id ?? undefined,
+          p_location_id: payload.location_id ?? undefined,
+          p_room_id: payload.room_id ?? undefined,
+
+          p_ends_at: payload.ends_at ?? undefined,
+
+          p_participant_count: payload.participant_count ?? 1,
+
+          p_status: payload.status ?? "pending",
+
+          p_payment_status: payload.payment_status ?? "unpaid",
+
+          p_subtotal: payload.subtotal ?? 0,
+
+          p_discount_amount: payload.discount_amount ?? 0,
+
+          p_tax_amount: payload.tax_amount ?? 0,
+
+          p_total_amount: payload.total_amount ?? 0,
+
+          p_notes: payload.notes ?? undefined,
+        },
+      );
+
+      if (createError) {
+        throw createError;
+      }
+
+      if (!data) {
+        throw new Error("Booking berhasil dibuat tetapi data tidak ditemukan.");
+      }
+
+      // ======================================================
+      // RPC mengembalikan row bookings.
+      //
+      // Kita ambil kembali data dengan relasi agar hasil
+      // addBooking() tetap memiliki struktur
+      // BookingWithRelations.
+      // ======================================================
+
+      const createdBooking = data as Booking;
+
+      const { data: bookingWithRelations, error: relationError } =
+        await supabase
+          .from("bookings")
+          .select(
+            `
             *,
             customer:customers(*),
             package:packages(*),
             room:studio_rooms(*),
             location:studio_locations(*)
           `,
-        )
-        .single();
+          )
+          .eq("id", createdBooking.id)
+          .eq("tenant_id", tenantId.value)
+          .single();
 
-      if (createError) {
-        throw createError;
+      if (relationError) {
+        throw relationError;
       }
 
-      const newBooking = data as BookingWithRelations;
+      const newBooking = bookingWithRelations as BookingWithRelations;
 
       bookings.value = [newBooking, ...bookings.value];
 
@@ -345,12 +369,12 @@ export const useBookings = () => {
         .eq("tenant_id", tenantId.value)
         .select(
           `
-            *,
-            customer:customers(*),
-            package:packages(*),
-            room:studio_rooms(*),
-            location:studio_locations(*)
-          `,
+              *,
+              customer:customers(*),
+              package:packages(*),
+              room:studio_rooms(*),
+              location:studio_locations(*)
+            `,
         )
         .single();
 
@@ -519,9 +543,6 @@ export const useBookings = () => {
     // Status
     updateBookingStatus,
     updatePaymentStatus,
-
-    // Helpers
-    generateBookingNumber,
 
     // State management
     clearCurrentBooking,
