@@ -1301,10 +1301,7 @@ DECLARE
     v_random text;
 BEGIN
 
-    -- =====================================================
-    -- A. Tenant wajib ada dan user adalah member tenant
-    -- =====================================================
-
+    -- A. Tenant
     IF p_tenant_id IS NULL THEN
         RAISE EXCEPTION 'Tenant is required';
     END IF;
@@ -1314,10 +1311,7 @@ BEGIN
     END IF;
 
 
-    -- =====================================================
-    -- B. Customer harus berasal dari tenant yang sama
-    -- =====================================================
-
+    -- B. Customer
     IF NOT EXISTS (
         SELECT 1
         FROM public.customers
@@ -1328,10 +1322,7 @@ BEGIN
     END IF;
 
 
-    -- =====================================================
-    -- C. Package harus berasal dari tenant yang sama
-    -- =====================================================
-
+    -- C. Package
     IF p_package_id IS NOT NULL
        AND NOT EXISTS (
             SELECT 1
@@ -1344,14 +1335,11 @@ BEGIN
     END IF;
 
 
-    -- =====================================================
-    -- D. Location harus berasal dari tenant yang sama
-    -- =====================================================
-
+    -- D. Location
     IF p_location_id IS NOT NULL
        AND NOT EXISTS (
             SELECT 1
-            FROM public.locations
+            FROM public.studio_locations
             WHERE id = p_location_id
               AND tenant_id = p_tenant_id
        )
@@ -1360,14 +1348,11 @@ BEGIN
     END IF;
 
 
-    -- =====================================================
-    -- E. Room harus berasal dari tenant yang sama
-    -- =====================================================
-
+    -- E. Room
     IF p_room_id IS NOT NULL
        AND NOT EXISTS (
             SELECT 1
-            FROM public.rooms
+            FROM public.studio_rooms
             WHERE id = p_room_id
               AND tenant_id = p_tenant_id
        )
@@ -1376,19 +1361,13 @@ BEGIN
     END IF;
 
 
-    -- =====================================================
-    -- F. Participant minimal 1
-    -- =====================================================
-
+    -- F. Participant
     IF p_participant_count < 1 THEN
         RAISE EXCEPTION 'Participant count must be at least 1';
     END IF;
 
 
-    -- =====================================================
-    -- G. End time harus setelah start time
-    -- =====================================================
-
+    -- G. End time
     IF p_ends_at IS NOT NULL
        AND p_ends_at <= p_starts_at
     THEN
@@ -1396,28 +1375,18 @@ BEGIN
     END IF;
 
 
-    -- =====================================================
-    -- H. Ambil timezone tenant
-    -- =====================================================
-
+    -- H. Tenant timezone
     SELECT COALESCE(timezone, 'Asia/Jakarta')
     INTO v_timezone
     FROM public.tenants
     WHERE id = p_tenant_id;
 
 
-    -- =====================================================
-    -- I. Buat timestamp lokal tenant
-    -- =====================================================
-
+    -- I. Local timestamp
     v_local_timestamp := now() AT TIME ZONE v_timezone;
 
 
-    -- =====================================================
-    -- J. Buat random suffix 4 karakter
-    --    A-Z + 0-9
-    -- =====================================================
-
+    -- J. Random 4 characters
     SELECT string_agg(
         substr(
             'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
@@ -1430,15 +1399,7 @@ BEGIN
     FROM generate_series(1, 4);
 
 
-    -- =====================================================
-    -- K. Buat booking number
-    --
-    -- BK-YYYYMMDD-HHMMSSmmm-RAND
-    --
-    -- Contoh:
-    -- BK-20260910-110530123-A7K2
-    -- =====================================================
-
+    -- K. Booking number
     v_booking_number :=
         'BK-'
         || to_char(v_local_timestamp, 'YYYYMMDD')
@@ -1448,10 +1409,7 @@ BEGIN
         || v_random;
 
 
-    -- =====================================================
-    -- L. Insert booking
-    -- =====================================================
-
+    -- L. Insert
     INSERT INTO public.bookings (
         tenant_id,
         booking_number,
