@@ -1293,276 +1293,210 @@ CREATE OR REPLACE FUNCTION public.create_booking(p_tenant_id uuid, p_customer_id
  SECURITY DEFINER
  SET search_path TO 'public', 'pg_temp'
 AS $function$
-
 DECLARE
-  v_booking public.bookings;
-
-  v_year integer;
-  v_month text;
-  v_timezone text;
-
-  v_sequence integer;
-  v_booking_number text;
-
+    v_booking public.bookings;
+    v_timezone text;
+    v_local_timestamp timestamp;
+    v_booking_number text;
+    v_random text;
 BEGIN
 
-  -- ==========================================================
-  -- A. Validasi tenant
-  -- ==========================================================
+    -- =====================================================
+    -- A. Tenant wajib ada dan user adalah member tenant
+    -- =====================================================
 
-  IF p_tenant_id IS NULL THEN
-    RAISE EXCEPTION 'tenant_id is required';
-  END IF;
+    IF p_tenant_id IS NULL THEN
+        RAISE EXCEPTION 'Tenant is required';
+    END IF;
 
-  IF NOT public.is_tenant_member(p_tenant_id) THEN
-    RAISE EXCEPTION 'User is not a member of this tenant';
-  END IF;
-
-
-  -- ==========================================================
-  -- B. Validasi customer
-  --
-  -- UUID saja tidak cukup.
-  -- Customer harus benar-benar milik tenant yang sedang aktif.
-  -- ==========================================================
-
-  IF NOT EXISTS (
-    SELECT 1
-    FROM public.customers
-    WHERE id = p_customer_id
-      AND tenant_id = p_tenant_id
-  ) THEN
-    RAISE EXCEPTION 'Customer does not belong to this tenant';
-  END IF;
+    IF NOT public.is_tenant_member(p_tenant_id) THEN
+        RAISE EXCEPTION 'You are not a member of this tenant';
+    END IF;
 
 
-  -- ==========================================================
-  -- C. Validasi package jika diberikan
-  -- ==========================================================
+    -- =====================================================
+    -- B. Customer harus berasal dari tenant yang sama
+    -- =====================================================
 
-  IF p_package_id IS NOT NULL
-     AND NOT EXISTS (
-       SELECT 1
-       FROM public.packages
-       WHERE id = p_package_id
-         AND tenant_id = p_tenant_id
-     )
-  THEN
-    RAISE EXCEPTION 'Package does not belong to this tenant';
-  END IF;
+    IF NOT EXISTS (
+        SELECT 1
+        FROM public.customers
+        WHERE id = p_customer_id
+          AND tenant_id = p_tenant_id
+    ) THEN
+        RAISE EXCEPTION 'Customer does not belong to this tenant';
+    END IF;
 
 
-  -- ==========================================================
-  -- D. Validasi location jika diberikan
-  -- ==========================================================
+    -- =====================================================
+    -- C. Package harus berasal dari tenant yang sama
+    -- =====================================================
 
-  IF p_location_id IS NOT NULL
-     AND NOT EXISTS (
-       SELECT 1
-       FROM public.studio_locations
-       WHERE id = p_location_id
-         AND tenant_id = p_tenant_id
-     )
-  THEN
-    RAISE EXCEPTION 'Location does not belong to this tenant';
-  END IF;
-
-
-  -- ==========================================================
-  -- E. Validasi room jika diberikan
-  -- ==========================================================
-
-  IF p_room_id IS NOT NULL
-     AND NOT EXISTS (
-       SELECT 1
-       FROM public.studio_rooms
-       WHERE id = p_room_id
-         AND tenant_id = p_tenant_id
-     )
-  THEN
-    RAISE EXCEPTION 'Room does not belong to this tenant';
-  END IF;
+    IF p_package_id IS NOT NULL
+       AND NOT EXISTS (
+            SELECT 1
+            FROM public.packages
+            WHERE id = p_package_id
+              AND tenant_id = p_tenant_id
+       )
+    THEN
+        RAISE EXCEPTION 'Package does not belong to this tenant';
+    END IF;
 
 
-  -- ==========================================================
-  -- F. Validasi participant count
-  -- ==========================================================
+    -- =====================================================
+    -- D. Location harus berasal dari tenant yang sama
+    -- =====================================================
 
-  IF p_participant_count <= 0 THEN
-    RAISE EXCEPTION 'participant_count must be greater than 0';
-  END IF;
-
-
-  -- ==========================================================
-  -- G. Validasi waktu
-  -- ==========================================================
-
-  IF p_ends_at IS NOT NULL
-     AND p_ends_at <= p_starts_at
-  THEN
-    RAISE EXCEPTION 'ends_at must be greater than starts_at';
-  END IF;
+    IF p_location_id IS NOT NULL
+       AND NOT EXISTS (
+            SELECT 1
+            FROM public.locations
+            WHERE id = p_location_id
+              AND tenant_id = p_tenant_id
+       )
+    THEN
+        RAISE EXCEPTION 'Location does not belong to this tenant';
+    END IF;
 
 
-  -- ==========================================================
-  -- H. Ambil timezone tenant
-  --
-  -- Tahun dan bulan booking mengikuti timezone studio,
-  -- bukan timezone server database.
-  -- ==========================================================
+    -- =====================================================
+    -- E. Room harus berasal dari tenant yang sama
+    -- =====================================================
 
-  SELECT timezone
-  INTO v_timezone
-  FROM public.tenants
-  WHERE id = p_tenant_id;
-
-
-  IF v_timezone IS NULL THEN
-    v_timezone := 'Asia/Jakarta';
-  END IF;
+    IF p_room_id IS NOT NULL
+       AND NOT EXISTS (
+            SELECT 1
+            FROM public.rooms
+            WHERE id = p_room_id
+              AND tenant_id = p_tenant_id
+       )
+    THEN
+        RAISE EXCEPTION 'Room does not belong to this tenant';
+    END IF;
 
 
-  -- ==========================================================
-  -- I. Tentukan tahun + bulan booking
-  --
-  -- Contoh:
-  --   2026-09-15 20:00 Asia/Jakarta
-  --
-  -- menghasilkan:
-  --   year  = 2026
-  --   month = 09
-  -- ==========================================================
+    -- =====================================================
+    -- F. Participant minimal 1
+    -- =====================================================
 
-  v_year :=
-    EXTRACT(
-      YEAR FROM (now() AT TIME ZONE v_timezone)
-    )::integer;
-
-  v_month :=
-    TO_CHAR(
-      now() AT TIME ZONE v_timezone,
-      'MM'
-    );
+    IF p_participant_count < 1 THEN
+        RAISE EXCEPTION 'Participant count must be at least 1';
+    END IF;
 
 
-  -- ==========================================================
-  -- J. Increment sequence secara ATOMIC
-  --
-  -- Jika row belum ada:
-  --   INSERT last_number = 1
-  --
-  -- Jika sudah ada:
-  --   last_number + 1
-  --
-  -- PRIMARY KEY (tenant_id, year) menjamin concurrency safety.
-  -- ==========================================================
+    -- =====================================================
+    -- G. End time harus setelah start time
+    -- =====================================================
 
-  INSERT INTO public.booking_number_sequences (
-    tenant_id,
-    year,
-    last_number
-  )
-  VALUES (
-    p_tenant_id,
-    v_year,
-    1
-  )
-  ON CONFLICT (tenant_id, year)
-  DO UPDATE
-  SET last_number =
-    public.booking_number_sequences.last_number + 1
-
-  RETURNING last_number
-  INTO v_sequence;
+    IF p_ends_at IS NOT NULL
+       AND p_ends_at <= p_starts_at
+    THEN
+        RAISE EXCEPTION 'End time must be after start time';
+    END IF;
 
 
-  -- ==========================================================
-  -- K. Bentuk booking number
-  --
-  -- Contoh:
-  --   year     = 2026
-  --   month    = 09
-  --   sequence = 1
-  --
-  --   BK-202609-0001
-  -- ==========================================================
+    -- =====================================================
+    -- H. Ambil timezone tenant
+    -- =====================================================
 
-  v_booking_number :=
-    'BK-'
-    || v_year::text
-    || v_month
-    || '-'
-    || LPAD(v_sequence::text, 4, '0');
+    SELECT COALESCE(timezone, 'Asia/Jakarta')
+    INTO v_timezone
+    FROM public.tenants
+    WHERE id = p_tenant_id;
 
 
-  -- ==========================================================
-  -- L. Insert booking
-  -- ==========================================================
+    -- =====================================================
+    -- I. Buat timestamp lokal tenant
+    -- =====================================================
 
-  INSERT INTO public.bookings (
-    tenant_id,
-    booking_number,
-
-    customer_id,
-    package_id,
-    location_id,
-    room_id,
-
-    starts_at,
-    ends_at,
-
-    participant_count,
-
-    status,
-    payment_status,
-
-    subtotal,
-    discount_amount,
-    tax_amount,
-    total_amount,
-
-    notes,
-
-    created_by
-  )
-  VALUES (
-    p_tenant_id,
-    v_booking_number,
-
-    p_customer_id,
-    p_package_id,
-    p_location_id,
-    p_room_id,
-
-    p_starts_at,
-    p_ends_at,
-
-    p_participant_count,
-
-    p_status,
-    p_payment_status,
-
-    p_subtotal,
-    p_discount_amount,
-    p_tax_amount,
-    p_total_amount,
-
-    p_notes,
-
-    auth.uid()
-  )
-  RETURNING *
-  INTO v_booking;
+    v_local_timestamp := now() AT TIME ZONE v_timezone;
 
 
-  -- ==========================================================
-  -- M. Return booking
-  -- ==========================================================
+    -- =====================================================
+    -- J. Buat random suffix 4 karakter
+    --    A-Z + 0-9
+    -- =====================================================
 
-  RETURN v_booking;
+    SELECT string_agg(
+        substr(
+            'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+            floor(random() * 36)::integer + 1,
+            1
+        ),
+        ''
+    )
+    INTO v_random
+    FROM generate_series(1, 4);
+
+
+    -- =====================================================
+    -- K. Buat booking number
+    --
+    -- BK-YYYYMMDD-HHMMSSmmm-RAND
+    --
+    -- Contoh:
+    -- BK-20260910-110530123-A7K2
+    -- =====================================================
+
+    v_booking_number :=
+        'BK-'
+        || to_char(v_local_timestamp, 'YYYYMMDD')
+        || '-'
+        || to_char(v_local_timestamp, 'HH24MISSMS')
+        || '-'
+        || v_random;
+
+
+    -- =====================================================
+    -- L. Insert booking
+    -- =====================================================
+
+    INSERT INTO public.bookings (
+        tenant_id,
+        booking_number,
+        customer_id,
+        package_id,
+        location_id,
+        room_id,
+        starts_at,
+        ends_at,
+        status,
+        payment_status,
+        subtotal,
+        discount_amount,
+        tax_amount,
+        total_amount,
+        notes,
+        created_by,
+        participant_count
+    )
+    VALUES (
+        p_tenant_id,
+        v_booking_number,
+        p_customer_id,
+        p_package_id,
+        p_location_id,
+        p_room_id,
+        p_starts_at,
+        p_ends_at,
+        p_status,
+        p_payment_status,
+        p_subtotal,
+        p_discount_amount,
+        p_tax_amount,
+        p_total_amount,
+        p_notes,
+        auth.uid(),
+        p_participant_count
+    )
+    RETURNING *
+    INTO v_booking;
+
+
+    RETURN v_booking;
 
 END;
-
 $function$
 ;
 
