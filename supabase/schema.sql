@@ -1,3 +1,4 @@
+-- update 16 09 2026
 -- DROP SCHEMA public;
 
 CREATE SCHEMA public AUTHORIZATION pg_database_owner;
@@ -126,7 +127,7 @@ CREATE POLICY plans_authenticated_select ON public."plans"
 ALTER TABLE public."plans" OWNER TO postgres;
 GRANT ALL ON TABLE public."plans" TO postgres;
 GRANT ALL ON TABLE public."plans" TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public."plans" TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public."plans" TO service_role;
 
 
 -- public.tenants definition
@@ -164,7 +165,7 @@ CREATE POLICY tenants_update_admin ON public.tenants
 ALTER TABLE public.tenants OWNER TO postgres;
 GRANT ALL ON TABLE public.tenants TO postgres;
 GRANT ALL ON TABLE public.tenants TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.tenants TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.tenants TO service_role;
 
 
 -- public.addons definition
@@ -198,7 +199,7 @@ CREATE POLICY addons_member_all ON public.addons
 ALTER TABLE public.addons OWNER TO postgres;
 GRANT ALL ON TABLE public.addons TO postgres;
 GRANT ALL ON TABLE public.addons TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.addons TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.addons TO service_role;
 
 
 -- public.customers definition
@@ -233,7 +234,7 @@ CREATE POLICY customers_member_all ON public.customers
 ALTER TABLE public.customers OWNER TO postgres;
 GRANT ALL ON TABLE public.customers TO postgres;
 GRANT ALL ON TABLE public.customers TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.customers TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.customers TO service_role;
 
 
 -- public.expense_categories definition
@@ -259,7 +260,7 @@ CREATE POLICY expense_categories_member_all ON public.expense_categories
 ALTER TABLE public.expense_categories OWNER TO postgres;
 GRANT ALL ON TABLE public.expense_categories TO postgres;
 GRANT ALL ON TABLE public.expense_categories TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.expense_categories TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.expense_categories TO service_role;
 
 
 -- public.packages definition
@@ -293,7 +294,7 @@ CREATE POLICY packages_member_all ON public.packages
 ALTER TABLE public.packages OWNER TO postgres;
 GRANT ALL ON TABLE public.packages TO postgres;
 GRANT ALL ON TABLE public.packages TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.packages TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.packages TO service_role;
 
 
 -- public.services definition
@@ -327,41 +328,7 @@ CREATE POLICY services_member_all ON public.services
 ALTER TABLE public.services OWNER TO postgres;
 GRANT ALL ON TABLE public.services TO postgres;
 GRANT ALL ON TABLE public.services TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.services TO service_role;
-
-
--- public.studio_locations definition
-
--- Drop table
-
--- DROP TABLE public.studio_locations;
-
-CREATE TABLE public.studio_locations ( id uuid DEFAULT gen_random_uuid() NOT NULL, tenant_id uuid NOT NULL, "name" text NOT NULL, address text NULL, city text NULL, postal_code text NULL, phone text NULL, is_active bool DEFAULT true NOT NULL, created_at timestamptz DEFAULT now() NOT NULL, updated_at timestamptz DEFAULT now() NOT NULL, CONSTRAINT studio_locations_pkey PRIMARY KEY (id), CONSTRAINT studio_locations_tenant_id_name_key UNIQUE (tenant_id, name), CONSTRAINT studio_locations_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE);
-CREATE INDEX idx_studio_locations_tenant ON public.studio_locations USING btree (tenant_id);
-
--- Table Triggers
-
-create trigger trg_studio_locations_updated_at before
-update
-    on
-    public.studio_locations for each row execute function set_updated_at();
-ALTER TABLE public.studio_locations ENABLE ROW LEVEL SECURITY;
-
--- Table Policies
-
-CREATE POLICY studio_locations_member_all ON public.studio_locations
- AS PERMISSIVE
- FOR ALL
- TO authenticated
- USING (is_tenant_member(tenant_id))
- WITH CHECK (is_tenant_member(tenant_id));
-
--- Permissions
-
-ALTER TABLE public.studio_locations OWNER TO postgres;
-GRANT ALL ON TABLE public.studio_locations TO postgres;
-GRANT ALL ON TABLE public.studio_locations TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.studio_locations TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.services TO service_role;
 
 
 -- public.studio_profiles definition
@@ -394,7 +361,7 @@ CREATE POLICY studio_profiles_member_all ON public.studio_profiles
 ALTER TABLE public.studio_profiles OWNER TO postgres;
 GRANT ALL ON TABLE public.studio_profiles TO postgres;
 GRANT ALL ON TABLE public.studio_profiles TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.studio_profiles TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.studio_profiles TO service_role;
 
 
 -- public.studio_rooms definition
@@ -403,8 +370,8 @@ GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.studio_profiles TO
 
 -- DROP TABLE public.studio_rooms;
 
-CREATE TABLE public.studio_rooms ( id uuid DEFAULT gen_random_uuid() NOT NULL, tenant_id uuid NOT NULL, location_id uuid NOT NULL, "name" text NOT NULL, capacity int4 NULL, description text NULL, is_active bool DEFAULT true NOT NULL, created_at timestamptz DEFAULT now() NOT NULL, updated_at timestamptz DEFAULT now() NOT NULL, CONSTRAINT studio_rooms_location_id_name_key UNIQUE (location_id, name), CONSTRAINT studio_rooms_pkey PRIMARY KEY (id), CONSTRAINT studio_rooms_location_id_fkey FOREIGN KEY (location_id) REFERENCES public.studio_locations(id) ON DELETE CASCADE, CONSTRAINT studio_rooms_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE);
-CREATE INDEX idx_studio_rooms_tenant ON public.studio_rooms USING btree (tenant_id, location_id);
+CREATE TABLE public.studio_rooms ( id uuid DEFAULT gen_random_uuid() NOT NULL, tenant_id uuid NOT NULL, "name" text NOT NULL, capacity int4 NULL, description text NULL, is_active bool DEFAULT true NOT NULL, created_at timestamptz DEFAULT now() NOT NULL, updated_at timestamptz DEFAULT now() NOT NULL, CONSTRAINT studio_rooms_pkey PRIMARY KEY (id), CONSTRAINT studio_rooms_tenant_id_name_key UNIQUE (tenant_id, name), CONSTRAINT studio_rooms_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE);
+CREATE INDEX idx_studio_rooms_tenant ON public.studio_rooms USING btree (tenant_id);
 
 -- Table Triggers
 
@@ -428,7 +395,7 @@ CREATE POLICY studio_rooms_member_all ON public.studio_rooms
 ALTER TABLE public.studio_rooms OWNER TO postgres;
 GRANT ALL ON TABLE public.studio_rooms TO postgres;
 GRANT ALL ON TABLE public.studio_rooms TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.studio_rooms TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.studio_rooms TO service_role;
 
 
 -- public.subscriptions definition
@@ -467,7 +434,7 @@ CREATE POLICY subscriptions_owner_update ON public.subscriptions
 ALTER TABLE public.subscriptions OWNER TO postgres;
 GRANT ALL ON TABLE public.subscriptions TO postgres;
 GRANT ALL ON TABLE public.subscriptions TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.subscriptions TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.subscriptions TO service_role;
 
 
 -- public.customer_addresses definition
@@ -494,7 +461,7 @@ CREATE POLICY customer_addresses_member_all ON public.customer_addresses
 ALTER TABLE public.customer_addresses OWNER TO postgres;
 GRANT ALL ON TABLE public.customer_addresses TO postgres;
 GRANT ALL ON TABLE public.customer_addresses TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.customer_addresses TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.customer_addresses TO service_role;
 
 
 -- public.customer_contacts definition
@@ -521,7 +488,7 @@ CREATE POLICY customer_contacts_member_all ON public.customer_contacts
 ALTER TABLE public.customer_contacts OWNER TO postgres;
 GRANT ALL ON TABLE public.customer_contacts TO postgres;
 GRANT ALL ON TABLE public.customer_contacts TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.customer_contacts TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.customer_contacts TO service_role;
 
 
 -- public.package_items definition
@@ -548,7 +515,7 @@ CREATE POLICY package_items_member_all ON public.package_items
 ALTER TABLE public.package_items OWNER TO postgres;
 GRANT ALL ON TABLE public.package_items TO postgres;
 GRANT ALL ON TABLE public.package_items TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.package_items TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.package_items TO service_role;
 
 
 -- public.availability definition
@@ -575,7 +542,7 @@ CREATE POLICY availability_member_all ON public.availability
 ALTER TABLE public.availability OWNER TO postgres;
 GRANT ALL ON TABLE public.availability TO postgres;
 GRANT ALL ON TABLE public.availability TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.availability TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.availability TO service_role;
 
 
 -- public.booking_assignees definition
@@ -602,7 +569,7 @@ CREATE POLICY booking_assignees_member_all ON public.booking_assignees
 ALTER TABLE public.booking_assignees OWNER TO postgres;
 GRANT ALL ON TABLE public.booking_assignees TO postgres;
 GRANT ALL ON TABLE public.booking_assignees TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.booking_assignees TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.booking_assignees TO service_role;
 
 
 -- public.booking_items definition
@@ -629,7 +596,7 @@ CREATE POLICY booking_items_member_all ON public.booking_items
 ALTER TABLE public.booking_items OWNER TO postgres;
 GRANT ALL ON TABLE public.booking_items TO postgres;
 GRANT ALL ON TABLE public.booking_items TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.booking_items TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.booking_items TO service_role;
 
 
 -- public.booking_notes definition
@@ -656,7 +623,7 @@ CREATE POLICY booking_notes_member_all ON public.booking_notes
 ALTER TABLE public.booking_notes OWNER TO postgres;
 GRANT ALL ON TABLE public.booking_notes TO postgres;
 GRANT ALL ON TABLE public.booking_notes TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.booking_notes TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.booking_notes TO service_role;
 
 
 -- public.booking_status_history definition
@@ -683,7 +650,7 @@ CREATE POLICY booking_status_history_member_all ON public.booking_status_history
 ALTER TABLE public.booking_status_history OWNER TO postgres;
 GRANT ALL ON TABLE public.booking_status_history TO postgres;
 GRANT ALL ON TABLE public.booking_status_history TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.booking_status_history TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.booking_status_history TO service_role;
 
 
 -- public.bookings definition
@@ -692,7 +659,7 @@ GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.booking_status_his
 
 -- DROP TABLE public.bookings;
 
-CREATE TABLE public.bookings ( id uuid DEFAULT gen_random_uuid() NOT NULL, tenant_id uuid NOT NULL, booking_number text NOT NULL, customer_id uuid NOT NULL, package_id uuid NULL, location_id uuid NULL, room_id uuid NULL, starts_at timestamptz NOT NULL, ends_at timestamptz NULL, status public."booking_status" DEFAULT 'pending'::booking_status NOT NULL, "payment_status" public."payment_status" DEFAULT 'unpaid'::payment_status NOT NULL, subtotal numeric(14, 2) DEFAULT 0 NOT NULL, discount_amount numeric(14, 2) DEFAULT 0 NOT NULL, tax_amount numeric(14, 2) DEFAULT 0 NOT NULL, total_amount numeric(14, 2) DEFAULT 0 NOT NULL, notes text NULL, created_by uuid NULL, created_at timestamptz DEFAULT now() NOT NULL, updated_at timestamptz DEFAULT now() NOT NULL, participant_count int4 DEFAULT 1 NOT NULL, CONSTRAINT bookings_check CHECK (((ends_at IS NULL) OR (ends_at > starts_at))), CONSTRAINT bookings_discount_amount_check CHECK ((discount_amount >= (0)::numeric)), CONSTRAINT bookings_participant_count_check CHECK ((participant_count > 0)), CONSTRAINT bookings_pkey PRIMARY KEY (id), CONSTRAINT bookings_subtotal_check CHECK ((subtotal >= (0)::numeric)), CONSTRAINT bookings_tax_amount_check CHECK ((tax_amount >= (0)::numeric)), CONSTRAINT bookings_tenant_id_booking_number_key UNIQUE (tenant_id, booking_number), CONSTRAINT bookings_total_amount_check CHECK ((total_amount >= (0)::numeric)));
+CREATE TABLE public.bookings ( id uuid DEFAULT gen_random_uuid() NOT NULL, tenant_id uuid NOT NULL, booking_number text NOT NULL, customer_id uuid NOT NULL, package_id uuid NULL, room_id uuid NULL, starts_at timestamptz NOT NULL, ends_at timestamptz NULL, status public."booking_status" DEFAULT 'pending'::booking_status NOT NULL, "payment_status" public."payment_status" DEFAULT 'unpaid'::payment_status NOT NULL, subtotal numeric(14, 2) DEFAULT 0 NOT NULL, discount_amount numeric(14, 2) DEFAULT 0 NOT NULL, tax_amount numeric(14, 2) DEFAULT 0 NOT NULL, total_amount numeric(14, 2) DEFAULT 0 NOT NULL, notes text NULL, created_by uuid NULL, created_at timestamptz DEFAULT now() NOT NULL, updated_at timestamptz DEFAULT now() NOT NULL, participant_count int4 DEFAULT 1 NOT NULL, CONSTRAINT bookings_check CHECK (((ends_at IS NULL) OR (ends_at > starts_at))), CONSTRAINT bookings_discount_amount_check CHECK ((discount_amount >= (0)::numeric)), CONSTRAINT bookings_participant_count_check CHECK ((participant_count > 0)), CONSTRAINT bookings_pkey PRIMARY KEY (id), CONSTRAINT bookings_subtotal_check CHECK ((subtotal >= (0)::numeric)), CONSTRAINT bookings_tax_amount_check CHECK ((tax_amount >= (0)::numeric)), CONSTRAINT bookings_tenant_id_booking_number_key UNIQUE (tenant_id, booking_number), CONSTRAINT bookings_total_amount_check CHECK ((total_amount >= (0)::numeric)));
 CREATE INDEX idx_bookings_customer ON public.bookings USING btree (tenant_id, customer_id);
 CREATE INDEX idx_bookings_tenant_start ON public.bookings USING btree (tenant_id, starts_at);
 CREATE INDEX idx_bookings_tenant_status ON public.bookings USING btree (tenant_id, status);
@@ -719,7 +686,7 @@ CREATE POLICY bookings_member_all ON public.bookings
 ALTER TABLE public.bookings OWNER TO postgres;
 GRANT ALL ON TABLE public.bookings TO postgres;
 GRANT ALL ON TABLE public.bookings TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.bookings TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.bookings TO service_role;
 
 
 -- public.calendar_events definition
@@ -753,7 +720,7 @@ CREATE POLICY calendar_events_member_all ON public.calendar_events
 ALTER TABLE public.calendar_events OWNER TO postgres;
 GRANT ALL ON TABLE public.calendar_events TO postgres;
 GRANT ALL ON TABLE public.calendar_events TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.calendar_events TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.calendar_events TO service_role;
 
 
 -- public.employees definition
@@ -787,7 +754,7 @@ CREATE POLICY employees_member_all ON public.employees
 ALTER TABLE public.employees OWNER TO postgres;
 GRANT ALL ON TABLE public.employees TO postgres;
 GRANT ALL ON TABLE public.employees TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.employees TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.employees TO service_role;
 
 
 -- public.expenses definition
@@ -822,7 +789,7 @@ CREATE POLICY expenses_member_all ON public.expenses
 ALTER TABLE public.expenses OWNER TO postgres;
 GRANT ALL ON TABLE public.expenses TO postgres;
 GRANT ALL ON TABLE public.expenses TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.expenses TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.expenses TO service_role;
 
 
 -- public.invoice_items definition
@@ -849,7 +816,7 @@ CREATE POLICY invoice_items_member_all ON public.invoice_items
 ALTER TABLE public.invoice_items OWNER TO postgres;
 GRANT ALL ON TABLE public.invoice_items TO postgres;
 GRANT ALL ON TABLE public.invoice_items TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.invoice_items TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.invoice_items TO service_role;
 
 
 -- public.invoices definition
@@ -884,7 +851,7 @@ CREATE POLICY invoices_member_all ON public.invoices
 ALTER TABLE public.invoices OWNER TO postgres;
 GRANT ALL ON TABLE public.invoices TO postgres;
 GRANT ALL ON TABLE public.invoices TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.invoices TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.invoices TO service_role;
 
 
 -- public.media_assets definition
@@ -912,7 +879,7 @@ CREATE POLICY media_assets_member_all ON public.media_assets
 ALTER TABLE public.media_assets OWNER TO postgres;
 GRANT ALL ON TABLE public.media_assets TO postgres;
 GRANT ALL ON TABLE public.media_assets TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.media_assets TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.media_assets TO service_role;
 
 
 -- public.media_folders definition
@@ -939,7 +906,7 @@ CREATE POLICY media_folders_member_all ON public.media_folders
 ALTER TABLE public.media_folders OWNER TO postgres;
 GRANT ALL ON TABLE public.media_folders TO postgres;
 GRANT ALL ON TABLE public.media_folders TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.media_folders TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.media_folders TO service_role;
 
 
 -- public.payments definition
@@ -967,7 +934,7 @@ CREATE POLICY payments_member_all ON public.payments
 ALTER TABLE public.payments OWNER TO postgres;
 GRANT ALL ON TABLE public.payments TO postgres;
 GRANT ALL ON TABLE public.payments TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.payments TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.payments TO service_role;
 
 
 -- public.production_orders definition
@@ -1001,7 +968,7 @@ CREATE POLICY production_orders_member_all ON public.production_orders
 ALTER TABLE public.production_orders OWNER TO postgres;
 GRANT ALL ON TABLE public.production_orders TO postgres;
 GRANT ALL ON TABLE public.production_orders TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.production_orders TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.production_orders TO service_role;
 
 
 -- public.production_task_assignments definition
@@ -1028,7 +995,7 @@ CREATE POLICY production_task_assignments_member_all ON public.production_task_a
 ALTER TABLE public.production_task_assignments OWNER TO postgres;
 GRANT ALL ON TABLE public.production_task_assignments TO postgres;
 GRANT ALL ON TABLE public.production_task_assignments TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.production_task_assignments TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.production_task_assignments TO service_role;
 
 
 -- public.production_tasks definition
@@ -1063,7 +1030,7 @@ CREATE POLICY production_tasks_member_all ON public.production_tasks
 ALTER TABLE public.production_tasks OWNER TO postgres;
 GRANT ALL ON TABLE public.production_tasks TO postgres;
 GRANT ALL ON TABLE public.production_tasks TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.production_tasks TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.production_tasks TO service_role;
 
 
 -- public.profiles definition
@@ -1106,7 +1073,7 @@ CREATE POLICY profiles_update_own ON public.profiles
 ALTER TABLE public.profiles OWNER TO postgres;
 GRANT ALL ON TABLE public.profiles TO postgres;
 GRANT ALL ON TABLE public.profiles TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.profiles TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.profiles TO service_role;
 
 
 -- public.tenant_members definition
@@ -1149,7 +1116,7 @@ CREATE POLICY tenant_members_update_admin ON public.tenant_members
 ALTER TABLE public.tenant_members OWNER TO postgres;
 GRANT ALL ON TABLE public.tenant_members TO postgres;
 GRANT ALL ON TABLE public.tenant_members TO authenticated;
-GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLE public.tenant_members TO service_role;
+GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.tenant_members TO service_role;
 
 
 -- public.availability foreign keys
@@ -1192,7 +1159,6 @@ ALTER TABLE public.booking_status_history ADD CONSTRAINT booking_status_history_
 
 ALTER TABLE public.bookings ADD CONSTRAINT bookings_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
 ALTER TABLE public.bookings ADD CONSTRAINT bookings_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE RESTRICT;
-ALTER TABLE public.bookings ADD CONSTRAINT bookings_location_id_fkey FOREIGN KEY (location_id) REFERENCES public.studio_locations(id) ON DELETE SET NULL;
 ALTER TABLE public.bookings ADD CONSTRAINT bookings_package_id_fkey FOREIGN KEY (package_id) REFERENCES public.packages(id) ON DELETE SET NULL;
 ALTER TABLE public.bookings ADD CONSTRAINT bookings_room_id_fkey FOREIGN KEY (room_id) REFERENCES public.studio_rooms(id) ON DELETE SET NULL;
 ALTER TABLE public.bookings ADD CONSTRAINT bookings_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
@@ -1285,23 +1251,28 @@ ALTER TABLE public.tenant_members ADD CONSTRAINT tenant_members_user_id_fkey FOR
 
 
 
--- DROP FUNCTION public.create_booking(uuid, uuid, timestamptz, uuid, uuid, uuid, timestamptz, int4, booking_status, payment_status, numeric, numeric, numeric, numeric, text);
+-- DROP FUNCTION public.create_booking(uuid, uuid, timestamptz, uuid, uuid, timestamptz, int4, booking_status, payment_status, numeric, numeric, numeric, numeric, text);
 
-CREATE OR REPLACE FUNCTION public.create_booking(p_tenant_id uuid, p_customer_id uuid, p_starts_at timestamp with time zone, p_package_id uuid DEFAULT NULL::uuid, p_location_id uuid DEFAULT NULL::uuid, p_room_id uuid DEFAULT NULL::uuid, p_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_participant_count integer DEFAULT 1, p_status booking_status DEFAULT 'pending'::booking_status, p_payment_status payment_status DEFAULT 'unpaid'::payment_status, p_subtotal numeric DEFAULT 0, p_discount_amount numeric DEFAULT 0, p_tax_amount numeric DEFAULT 0, p_total_amount numeric DEFAULT 0, p_notes text DEFAULT NULL::text)
+CREATE OR REPLACE FUNCTION public.create_booking(p_tenant_id uuid, p_customer_id uuid, p_starts_at timestamp with time zone, p_package_id uuid DEFAULT NULL::uuid, p_room_id uuid DEFAULT NULL::uuid, p_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_participant_count integer DEFAULT 1, p_status booking_status DEFAULT 'pending'::booking_status, p_payment_status payment_status DEFAULT 'unpaid'::payment_status, p_subtotal numeric DEFAULT 0, p_discount_amount numeric DEFAULT 0, p_tax_amount numeric DEFAULT 0, p_total_amount numeric DEFAULT 0, p_notes text DEFAULT NULL::text)
  RETURNS bookings
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public', 'pg_temp'
 AS $function$
+
 DECLARE
     v_booking public.bookings;
     v_timezone text;
     v_local_timestamp timestamp;
     v_booking_number text;
     v_random text;
+
 BEGIN
 
+    -- ========================================================
     -- A. Tenant
+    -- ========================================================
+
     IF p_tenant_id IS NULL THEN
         RAISE EXCEPTION 'Tenant is required';
     END IF;
@@ -1311,7 +1282,10 @@ BEGIN
     END IF;
 
 
+    -- ========================================================
     -- B. Customer
+    -- ========================================================
+
     IF NOT EXISTS (
         SELECT 1
         FROM public.customers
@@ -1322,7 +1296,10 @@ BEGIN
     END IF;
 
 
+    -- ========================================================
     -- C. Package
+    -- ========================================================
+
     IF p_package_id IS NOT NULL
        AND NOT EXISTS (
             SELECT 1
@@ -1335,20 +1312,16 @@ BEGIN
     END IF;
 
 
-    -- D. Location
-    IF p_location_id IS NOT NULL
-       AND NOT EXISTS (
-            SELECT 1
-            FROM public.studio_locations
-            WHERE id = p_location_id
-              AND tenant_id = p_tenant_id
-       )
-    THEN
-        RAISE EXCEPTION 'Location does not belong to this tenant';
-    END IF;
+    -- ========================================================
+    -- D. Room
+    -- ========================================================
+    --
+    -- Room sekarang langsung berada di bawah tenant.
+    --
+    -- Tidak ada lagi studio_locations.
+    --
+    -- ========================================================
 
-
-    -- E. Room
     IF p_room_id IS NOT NULL
        AND NOT EXISTS (
             SELECT 1
@@ -1361,13 +1334,19 @@ BEGIN
     END IF;
 
 
-    -- F. Participant
+    -- ========================================================
+    -- E. Participant
+    -- ========================================================
+
     IF p_participant_count < 1 THEN
         RAISE EXCEPTION 'Participant count must be at least 1';
     END IF;
 
 
-    -- G. End time
+    -- ========================================================
+    -- F. End time
+    -- ========================================================
+
     IF p_ends_at IS NOT NULL
        AND p_ends_at <= p_starts_at
     THEN
@@ -1375,18 +1354,27 @@ BEGIN
     END IF;
 
 
-    -- H. Tenant timezone
+    -- ========================================================
+    -- G. Tenant timezone
+    -- ========================================================
+
     SELECT COALESCE(timezone, 'Asia/Jakarta')
     INTO v_timezone
     FROM public.tenants
     WHERE id = p_tenant_id;
 
 
-    -- I. Local timestamp
+    -- ========================================================
+    -- H. Local timestamp
+    -- ========================================================
+
     v_local_timestamp := now() AT TIME ZONE v_timezone;
 
 
-    -- J. Random 4 characters
+    -- ========================================================
+    -- I. Random 4 characters
+    -- ========================================================
+
     SELECT string_agg(
         substr(
             'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
@@ -1399,7 +1387,16 @@ BEGIN
     FROM generate_series(1, 4);
 
 
-    -- K. Booking number
+    -- ========================================================
+    -- J. Booking number
+    -- ========================================================
+    --
+    -- Format:
+    --
+    -- BK-YYYYMMDD-HH24MISSMS-RAND
+    --
+    -- ========================================================
+
     v_booking_number :=
         'BK-'
         || to_char(v_local_timestamp, 'YYYYMMDD')
@@ -1409,13 +1406,15 @@ BEGIN
         || v_random;
 
 
-    -- L. Insert
+    -- ========================================================
+    -- K. Insert booking
+    -- ========================================================
+
     INSERT INTO public.bookings (
         tenant_id,
         booking_number,
         customer_id,
         package_id,
-        location_id,
         room_id,
         starts_at,
         ends_at,
@@ -1434,7 +1433,6 @@ BEGIN
         v_booking_number,
         p_customer_id,
         p_package_id,
-        p_location_id,
         p_room_id,
         p_starts_at,
         p_ends_at,
@@ -1452,17 +1450,23 @@ BEGIN
     INTO v_booking;
 
 
+    -- ========================================================
+    -- L. Return
+    -- ========================================================
+
     RETURN v_booking;
 
 END;
+
 $function$
 ;
 
 -- Permissions
 
-ALTER FUNCTION public.create_booking(uuid, uuid, timestamptz, uuid, uuid, uuid, timestamptz, int4, booking_status, payment_status, numeric, numeric, numeric, numeric, text) OWNER TO postgres;
-GRANT ALL ON FUNCTION public.create_booking(uuid, uuid, timestamptz, uuid, uuid, uuid, timestamptz, int4, booking_status, payment_status, numeric, numeric, numeric, numeric, text) TO postgres;
-GRANT ALL ON FUNCTION public.create_booking(uuid, uuid, timestamptz, uuid, uuid, uuid, timestamptz, int4, booking_status, payment_status, numeric, numeric, numeric, numeric, text) TO authenticated;
+ALTER FUNCTION public.create_booking(uuid, uuid, timestamptz, uuid, uuid, timestamptz, int4, booking_status, payment_status, numeric, numeric, numeric, numeric, text) OWNER TO postgres;
+GRANT ALL ON FUNCTION public.create_booking(uuid, uuid, timestamptz, uuid, uuid, timestamptz, int4, booking_status, payment_status, numeric, numeric, numeric, numeric, text) TO public;
+GRANT ALL ON FUNCTION public.create_booking(uuid, uuid, timestamptz, uuid, uuid, timestamptz, int4, booking_status, payment_status, numeric, numeric, numeric, numeric, text) TO postgres;
+GRANT ALL ON FUNCTION public.create_booking(uuid, uuid, timestamptz, uuid, uuid, timestamptz, int4, booking_status, payment_status, numeric, numeric, numeric, numeric, text) TO authenticated;
 
 -- DROP FUNCTION public.create_tenant(text, text);
 
@@ -1607,21 +1611,21 @@ GRANT USAGE ON SCHEMA public TO postgres;
 GRANT USAGE ON SCHEMA public TO anon;
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT USAGE ON SCHEMA public TO service_role;
-ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT UPDATE, USAGE, SELECT ON SEQUENCES TO postgres;
-ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT UPDATE, USAGE, SELECT ON SEQUENCES TO anon;
-ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT UPDATE, USAGE, SELECT ON SEQUENCES TO authenticated;
-ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT UPDATE, USAGE, SELECT ON SEQUENCES TO service_role;
-ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT TRIGGER, UPDATE, TRUNCATE, MAINTAIN, SELECT, INSERT, DELETE, REFERENCES ON TABLES TO postgres;
-ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT TRIGGER, UPDATE, TRUNCATE, MAINTAIN, SELECT, INSERT, DELETE, REFERENCES ON TABLES TO anon;
-ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT TRIGGER, UPDATE, TRUNCATE, MAINTAIN, SELECT, INSERT, DELETE, REFERENCES ON TABLES TO authenticated;
-ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT TRIGGER, UPDATE, TRUNCATE, MAINTAIN, SELECT, INSERT, DELETE, REFERENCES ON TABLES TO service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT SELECT, USAGE, UPDATE ON SEQUENCES TO postgres;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT SELECT, USAGE, UPDATE ON SEQUENCES TO anon;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT SELECT, USAGE, UPDATE ON SEQUENCES TO authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT SELECT, USAGE, UPDATE ON SEQUENCES TO service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT DELETE, MAINTAIN, SELECT, UPDATE, INSERT, TRUNCATE, REFERENCES, TRIGGER ON TABLES TO postgres;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT DELETE, MAINTAIN, SELECT, UPDATE, INSERT, TRUNCATE, REFERENCES, TRIGGER ON TABLES TO anon;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT DELETE, MAINTAIN, SELECT, UPDATE, INSERT, TRUNCATE, REFERENCES, TRIGGER ON TABLES TO authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT DELETE, MAINTAIN, SELECT, UPDATE, INSERT, TRUNCATE, REFERENCES, TRIGGER ON TABLES TO service_role;
 ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO postgres;
 ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon;
 ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO authenticated;
 ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO service_role;
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT TRIGGER, UPDATE, TRUNCATE, MAINTAIN, SELECT, INSERT, DELETE, REFERENCES ON TABLES TO postgres;
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLES TO anon;
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLES TO authenticated;
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT TRIGGER, TRUNCATE, MAINTAIN, REFERENCES ON TABLES TO service_role;
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT UPDATE, USAGE, SELECT ON SEQUENCES TO postgres;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT DELETE, MAINTAIN, SELECT, UPDATE, INSERT, TRUNCATE, REFERENCES, TRIGGER ON TABLES TO postgres;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLES TO anon;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLES TO authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT MAINTAIN, TRUNCATE, REFERENCES, TRIGGER ON TABLES TO service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT SELECT, USAGE, UPDATE ON SEQUENCES TO postgres;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO postgres;
