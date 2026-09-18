@@ -1,3 +1,4 @@
+// app/composables/useBookings.ts
 import type { Database } from "~/types/database.types";
 
 // ============================================================
@@ -15,9 +16,6 @@ export type Customer = Database["public"]["Tables"]["customers"]["Row"];
 export type Package = Database["public"]["Tables"]["packages"]["Row"];
 
 export type StudioRoom = Database["public"]["Tables"]["studio_rooms"]["Row"];
-
-export type StudioLocation =
-  Database["public"]["Tables"]["studio_locations"]["Row"];
 
 export type BookingItem = Database["public"]["Tables"]["booking_items"]["Row"];
 
@@ -43,7 +41,6 @@ export type BookingWithRelations = Booking & {
   customer: Customer | null;
   package: Package | null;
   room: StudioRoom | null;
-  location: StudioLocation | null;
 };
 
 // ============================================================
@@ -127,8 +124,7 @@ export const useBookings = () => {
           *,
           customer:customers(*),
           package:packages(*),
-          room:studio_rooms(*),
-          location:studio_locations(*)
+          room:studio_rooms(*)
         `,
         )
         .eq("tenant_id", tenantId.value)
@@ -184,7 +180,6 @@ export const useBookings = () => {
             customer:customers(*),
             package:packages(*),
             room:studio_rooms(*),
-            location:studio_locations(*),
             booking_items(*),
             booking_assignees(
               *,
@@ -249,7 +244,6 @@ export const useBookings = () => {
       // - validasi tenant
       // - validasi customer
       // - validasi package
-      // - validasi location
       // - validasi room
       // - generate booking_number
       // - insert booking
@@ -263,7 +257,6 @@ export const useBookings = () => {
           p_starts_at: payload.starts_at,
 
           p_package_id: payload.package_id ?? undefined,
-          p_location_id: payload.location_id ?? undefined,
           p_room_id: payload.room_id ?? undefined,
 
           p_ends_at: payload.ends_at ?? undefined,
@@ -312,8 +305,7 @@ export const useBookings = () => {
             *,
             customer:customers(*),
             package:packages(*),
-            room:studio_rooms(*),
-            location:studio_locations(*)
+            room:studio_rooms(*)
           `,
           )
           .eq("id", createdBooking.id)
@@ -372,8 +364,7 @@ export const useBookings = () => {
               *,
               customer:customers(*),
               package:packages(*),
-              room:studio_rooms(*),
-              location:studio_locations(*)
+              room:studio_rooms(*)
             `,
         )
         .single();
@@ -515,6 +506,27 @@ export const useBookings = () => {
     currentBooking.value = null;
     error.value = null;
   }
+
+  // ==========================================================
+  // Watcher: Otomatis refetch saat tenant aktif berganti
+  // ==========================================================
+  watch(
+    tenantId,
+    async (newTenantId, oldTenantId) => {
+      // Jika tenantId berubah dan tidak null
+      if (newTenantId && newTenantId !== oldTenantId) {
+        // Bersihkan data lama terlebih dahulu agarUI tidak berbayang
+        bookings.value = [];
+        currentBooking.value = null;
+
+        // Fetch data baru
+        await loadBookings();
+      } else if (!newTenantId) {
+        clearBookings();
+      }
+    },
+    { immediate: false },
+  );
 
   // ==========================================================
   // Return
