@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Yayasan Pendidikan Nusantara</title>
+    <style>
+      /* 1. RESET & DASAR */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: Arial, sans-serif;
+      }
+
+      body {
+        background-color: #f4f6f9;
+        color: #333;
+        line-height: 1.6;
+      }
+
+      /* 2. NAVBAR (HEADER) */
+      header {
+        background-color: #1e3a8a; /* Warna Biru Tua */
+        color: white;
+        padding: 1rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      header h1 {
+        font-size: 1.5rem;
+      }
+
+      nav a {
+        color: white;
+        text-decoration: none;
+        margin-left: 1.5rem;
+        font-weight: bold;
+      }
+
+      nav a:hover {
+        color: #93c5fd; /* Efek hover saat kursor di atas link */
+      }
+
+      /* 3. HERO SECTION (BANNER UTAMA) */
+      .hero {
+        background-color: #2563eb; /* Warna Biru */
+        color: white;
+        text-align: center;
+        padding: 4rem 1rem;
+      }
+
+      .hero h2 {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+      }
+
+      .hero p {
+        font-size: 1.2rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .btn {
+        display: inline-block;
+        background-color: #f59e0b; /* Warna Oranye */
+        color: white;
+        padding: 0.8rem 1.5rem;
+        text-decoration: none;
+        border-radius: 5px;
+        font-weight: bold;
+      }
+
+      .btn:hover {
+        background-color: #d97706;
+      }
+
+      /* 4. KONTEN UTAMA (CONTAINER) */
+      .container {
+        max-width: 1000px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+
+      .section-title {
+        text-align: center;
+        margin-bottom: 2rem;
+        color: #1e3a8a;
+      }
+
+      /* 5. GRID PROGRAM/KEUNGGULAN */
+      .grid-container {
+        display: flex;
+        gap: 1.5rem;
+        flex-wrap: wrap; /* Agar responsif jika di layar HP */
+      }
+
+      .card {
+        background-color: white;
+        flex: 1;
+        min-width: 250px;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .card h3 {
+        color: #2563eb;
+        margin-bottom: 0.5rem;
+      }
+
+      /* 6. FOOTER */
+      footer {
+        background-color: #0f172a;
+        color: white;
+        text-align: center;
+        padding: 1.5rem;
+        margin-top: 3rem;
+      }
+    </style>
+
+  </head>
+  <body>
+    <!-- HEADER / NAVBAR -->
+    <header>
+      <h1>Yayasan Pendidikan Nusantara</h1>
+      <nav>
+        <a href="#beranda">Beranda</a>
+        <a href="#tentang">Tentang</a>
+        <a href="#program">Program</a>
+        <a href="#kontak">Kontak</a>
+      </nav>
+    </header>
+
+    <!-- HERO SECTION -->
+    <section class="hero" id="beranda">
+      <h2>Membangun Generasi Cerdas & Berkarakter</h2>
+      <p>Pendidikan berkualitas untuk masa depan Indonesia yang lebih cerah.</p>
+      <a href="#kontak" class="btn">Daftar Sekarang</a>
+    </section>
+
+    <!-- KONTEN PROGRAM -->
+    <main class="container" id="program">
+      <h2 class="section-title">Program Pendidikan Kami</h2>
+
+      <div class="grid-container">
+        <!-- Card 1 -->
+        <div class="card">
+          <h3>SD Islam Terpadu</h3>
+          <p>
+            Pendidikan dasar yang menanamkan nilai-nilai keagamaan, pembentukan
+            karakter, dan literasi digital sejak dini.
+          </p>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="card">
+          <h3>SMP Nusantara</h3>
+          <p>
+            Pengembangan bakat, logika, dan kepemimpinan dengan kurikulum
+            berbasis proyek dan teknologi modern.
+          </p>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="card">
+          <h3>SMA Unggulan</h3>
+          <p>
+            Persiapan intensif menuju perguruan tinggi negeri & swasta terbaik,
+            dilengkapi dengan program riset siswa.
+          </p>
+        </div>
+      </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer id="kontak">
+      <p>&copy; 2026 Yayasan Pendidikan Nusantara. All rights reserved.</p>
+      <p>Jl. Pendidikan No. 123, Jakarta | Email: info@ypn.or.id</p>
+    </footer>
+
+  </body>
+</html>
+```
+
+---
+
+PERBAIKAN :
+
+```html
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Yayasan Pendidikan Nusantara</title>
+    <style>
+      /* 1. RESET & DASAR */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: Arial, sans-serif;
+      }
+
+      /* PERUBAHAN UTAMA: Membuat body memenuhi 100% tinggi layar monitor/HP */
+      html,
+      body {
+        height: 100%;
+      }
+
+      body {
+        background-color: #f4f6f9;
+        color: #333;
+        line-height: 1.6;
+
+        /* PERUBAHAN UTAMA: Mengatur body sebagai Flexbox Vertikal */
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* PERUBAHAN UTAMA: Konten tengah (main) didorong agar mengisi sisa ruang kosong */
+      main.container {
+        flex: 1;
+      }
+
+      /* 2. NAVBAR (HEADER) */
+      header {
+        background-color: #1e3a8a;
+        color: white;
+        padding: 1rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      header h1 {
+        font-size: 1.5rem;
+      }
+
+      nav a {
+        color: white;
+        text-decoration: none;
+        margin-left: 1.5rem;
+        font-weight: bold;
+      }
+
+      nav a:hover {
+        color: #93c5fd;
+      }
+
+      /* 3. HERO SECTION */
+      .hero {
+        background-color: #2563eb;
+        color: white;
+        text-align: center;
+        padding: 4rem 1rem;
+      }
+
+      .hero h2 {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+      }
+
+      .hero p {
+        font-size: 1.2rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .btn {
+        display: inline-block;
+        background-color: #f59e0b;
+        color: white;
+        padding: 0.8rem 1.5rem;
+        text-decoration: none;
+        border-radius: 5px;
+        font-weight: bold;
+      }
+
+      .btn:hover {
+        background-color: #d97706;
+      }
+
+      /* 4. KONTEN UTAMA */
+      .container {
+        max-width: 1000px;
+        width: 100%;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+
+      .section-title {
+        text-align: center;
+        margin-bottom: 2rem;
+        color: #1e3a8a;
+      }
+
+      /* 5. GRID PROGRAM */
+      .grid-container {
+        display: flex;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+      }
+
+      .card {
+        background-color: white;
+        flex: 1;
+        min-width: 250px;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .card h3 {
+        color: #2563eb;
+        margin-bottom: 0.5rem;
+      }
+
+      /* 6. FOOTER */
+      footer {
+        background-color: #0f172a;
+        color: white;
+        text-align: center;
+        padding: 1.5rem;
+        /* margin-top dihapus karena sudah diatur oleh flex: 1 pada main */
+      }
+    </style>
+  </head>
+  <body>
+    <!-- HEADER / NAVBAR -->
+    <header>
+      <h1>Yayasan Pendidikan Nusantara</h1>
+      <nav>
+        <a href="#beranda">Beranda</a>
+        <a href="#tentang">Tentang</a>
+        <a href="#program">Program</a>
+        <a href="#kontak">Kontak</a>
+      </nav>
+    </header>
+
+    <!-- HERO SECTION -->
+    <section class="hero" id="beranda">
+      <h2>Membangun Generasi Cerdas & Berkarakter</h2>
+      <p>Pendidikan berkualitas untuk masa depan Indonesia yang lebih cerah.</p>
+      <a href="#kontak" class="btn">Daftar Sekarang</a>
+    </section>
+
+    <!-- KONTEN PROGRAM -->
+    <main class="container" id="program">
+      <h2 class="section-title">Program Pendidikan Kami</h2>
+
+      <div class="grid-container">
+        <div class="card">
+          <h3>SD Islam Terpadu</h3>
+          <p>
+            Pendidikan dasar yang menanamkan nilai-nilai keagamaan, pembentukan
+            karakter, dan literasi digital sejak dini.
+          </p>
+        </div>
+
+        <div class="card">
+          <h3>SMP Nusantara</h3>
+          <p>
+            Pengembangan bakat, logika, dan kepemimpinan dengan kurikulum
+            berbasis proyek dan teknologi modern.
+          </p>
+        </div>
+
+        <div class="card">
+          <h3>SMA Unggulan</h3>
+          <p>
+            Persiapan intensif menuju perguruan tinggi negeri & swasta terbaik,
+            dilengkapi dengan program riset siswa.
+          </p>
+        </div>
+      </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer id="kontak">
+      <p>&copy; 2026 Yayasan Pendidikan Nusantara. All rights reserved.</p>
+      <p>Jl. Pendidikan No. 123, Jakarta | Email: info@ypn.or.id</p>
+    </footer>
+  </body>
+</html>
