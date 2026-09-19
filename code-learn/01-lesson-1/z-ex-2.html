@@ -1,0 +1,577 @@
+<!doctype html>
+<html l ang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Yayasan Pendidikan Nusantara — pendidikan berkualitas untuk masa depan Indonesia yang lebih cerah."
+    />
+    <title>Yayasan Pendidikan Nusantara</title>
+    <style>
+      /* ===== WARNA UTAMA — ubah nilai ini untuk mengganti tema ===== */
+      :root {
+        --navy: #153b66;
+        --blue: #2364aa;
+        --blue-light: #eaf3fb;
+        --orange: #f29b38;
+        --orange-dark: #d47b1c;
+        --ink: #18324b;
+        --muted: #61758a;
+        --white: #ffffff;
+        --line: #dce7f0;
+        --shadow: 0 18px 45px rgba(21, 59, 102, 0.12);
+      }
+
+      /* ===== RESET & DASAR ===== */
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        background: #f8fbfd;
+        color: var(--ink);
+        font-family: Arial, Helvetica, sans-serif;
+        line-height: 1.6;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .container {
+        width: min(1120px, calc(100% - 40px));
+        margin: 0 auto;
+      }
+
+      /* ===== NAVBAR ===== */
+      header {
+        background: var(--navy);
+        color: var(--white);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+
+      .nav-inner {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+        min-height: 76px;
+      }
+
+      .brand {
+        align-items: center;
+        display: flex;
+        gap: 12px;
+        text-decoration: none;
+      }
+
+      .brand-mark {
+        align-items: center;
+        background: var(--orange);
+        border-radius: 12px;
+        color: var(--navy);
+        display: flex;
+        font-size: 1.15rem;
+        font-weight: 800;
+        height: 38px;
+        justify-content: center;
+        width: 38px;
+      }
+
+      .brand-name {
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+      }
+
+      nav {
+        align-items: center;
+        display: flex;
+        gap: 26px;
+      }
+
+      nav a {
+        color: #e9f2fb;
+        font-size: 0.9rem;
+        text-decoration: none;
+      }
+
+      nav a:hover,
+      nav a:focus-visible {
+        color: var(--orange);
+      }
+
+      /* ===== HERO ===== */
+      .hero {
+        background:
+          radial-gradient(
+            circle at 84% 30%,
+            rgba(255, 255, 255, 0.16),
+            transparent 27%
+          ),
+          linear-gradient(120deg, var(--navy), var(--blue));
+        color: var(--white);
+        overflow: hidden;
+      }
+
+      .hero-inner {
+        align-items: center;
+        display: grid;
+        gap: 56px;
+        grid-template-columns: 1.1fr 0.9fr;
+        min-height: 510px;
+        padding-bottom: 72px;
+        padding-top: 72px;
+      }
+
+      .eyebrow {
+        color: var(--orange);
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        margin-bottom: 18px;
+        text-transform: uppercase;
+      }
+
+      .hero h1 {
+        font-size: clamp(2.4rem, 5vw, 4.3rem);
+        letter-spacing: -0.04em;
+        line-height: 1.08;
+        max-width: 680px;
+      }
+
+      .hero p {
+        color: #dbeaf7;
+        font-size: 1.08rem;
+        margin: 22px 0 30px;
+        max-width: 570px;
+      }
+
+      .button {
+        background: var(--orange);
+        border-radius: 8px;
+        color: #173653;
+        display: inline-block;
+        font-size: 0.94rem;
+        font-weight: 800;
+        padding: 13px 21px;
+        text-decoration: none;
+        transition:
+          background 180ms ease,
+          transform 180ms ease;
+      }
+
+      .button:hover,
+      .button:focus-visible {
+        background: #ffb65a;
+        transform: translateY(-2px);
+      }
+
+      .hero-illustration {
+        align-items: center;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.17);
+        border-radius: 28px;
+        display: flex;
+        justify-content: center;
+        min-height: 275px;
+        position: relative;
+      }
+
+      .hero-illustration::before,
+      .hero-illustration::after {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        content: '';
+        height: 190px;
+        position: absolute;
+        width: 190px;
+      }
+
+      .hero-illustration::after {
+        height: 245px;
+        width: 245px;
+      }
+
+      .illustration-card {
+        background: var(--white);
+        border-radius: 16px;
+        box-shadow: 0 20px 35px rgba(7, 31, 57, 0.2);
+        color: var(--ink);
+        padding: 24px;
+        position: relative;
+        text-align: center;
+        transform: rotate(-3deg);
+        width: 210px;
+        z-index: 1;
+      }
+
+      .illustration-icon {
+        align-items: center;
+        background: var(--blue-light);
+        border-radius: 50%;
+        display: flex;
+        font-size: 2.6rem;
+        height: 80px;
+        justify-content: center;
+        margin: 0 auto 14px;
+        width: 80px;
+      }
+
+      .illustration-card strong {
+        display: block;
+        font-size: 1rem;
+      }
+
+      .illustration-card span {
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+
+      /* ===== KONTEN ===== */
+      section {
+        scroll-margin-top: 90px;
+      }
+
+      .section {
+        padding: 86px 0;
+      }
+
+      .section-heading {
+        margin: 0 auto 38px;
+        max-width: 650px;
+        text-align: center;
+      }
+
+      .section-heading .eyebrow {
+        color: var(--blue);
+        margin-bottom: 10px;
+      }
+
+      .section-heading h2 {
+        color: var(--navy);
+        font-size: clamp(1.9rem, 3vw, 2.6rem);
+        line-height: 1.15;
+      }
+
+      .section-heading p {
+        color: var(--muted);
+        margin-top: 13px;
+      }
+
+      .about-grid {
+        align-items: center;
+        display: grid;
+        gap: 52px;
+        grid-template-columns: 0.85fr 1.15fr;
+      }
+
+      .about-panel {
+        background: var(--blue-light);
+        border-radius: 22px;
+        padding: 34px;
+      }
+
+      .about-panel .big-number {
+        color: var(--blue);
+        display: block;
+        font-size: 4.2rem;
+        font-weight: 800;
+        letter-spacing: -0.08em;
+        line-height: 1;
+      }
+
+      .about-panel strong {
+        display: block;
+        font-size: 1.15rem;
+        margin-top: 12px;
+      }
+
+      .about-panel p,
+      .about-copy p {
+        color: var(--muted);
+        margin-top: 12px;
+      }
+
+      .about-copy h2 {
+        color: var(--navy);
+        font-size: 2rem;
+        line-height: 1.2;
+      }
+
+      .programs {
+        background: #f0f6fa;
+      }
+
+      .card-grid {
+        display: grid;
+        gap: 20px;
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .card {
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 28px;
+        transition:
+          box-shadow 180ms ease,
+          transform 180ms ease;
+      }
+
+      .card:hover {
+        box-shadow: var(--shadow);
+        transform: translateY(-4px);
+      }
+
+      .card-icon {
+        align-items: center;
+        background: var(--blue-light);
+        border-radius: 11px;
+        display: flex;
+        font-size: 1.45rem;
+        height: 48px;
+        justify-content: center;
+        margin-bottom: 20px;
+        width: 48px;
+      }
+
+      .card h3 {
+        color: var(--navy);
+        font-size: 1.15rem;
+        margin-bottom: 10px;
+      }
+
+      .card p {
+        color: var(--muted);
+        font-size: 0.94rem;
+      }
+
+      /* ===== KONTAK & FOOTER ===== */
+      .contact-box {
+        align-items: center;
+        background: var(--navy);
+        border-radius: 22px;
+        color: var(--white);
+        display: flex;
+        gap: 24px;
+        justify-content: space-between;
+        padding: 34px 40px;
+      }
+
+      .contact-box h2 {
+        font-size: 1.65rem;
+        line-height: 1.2;
+      }
+
+      .contact-box p {
+        color: #c9dbea;
+        margin-top: 6px;
+      }
+
+      footer {
+        background: #0d2945;
+        color: #bad0e2;
+        font-size: 0.85rem;
+        padding: 27px 0;
+      }
+
+      .footer-inner {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+      }
+
+      /* ===== RESPONSIVE ===== */
+      @media (max-width: 760px) {
+        .container {
+          width: min(100% - 32px, 560px);
+        }
+
+        .nav-inner {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 13px;
+          padding-bottom: 17px;
+          padding-top: 17px;
+        }
+
+        nav {
+          gap: 16px;
+          width: 100%;
+        }
+
+        nav a {
+          font-size: 0.8rem;
+        }
+
+        .hero-inner,
+        .about-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .hero-inner {
+          gap: 36px;
+          min-height: auto;
+          padding-bottom: 58px;
+          padding-top: 58px;
+        }
+
+        .hero-illustration {
+          min-height: 220px;
+        }
+
+        .section {
+          padding: 62px 0;
+        }
+
+        .card-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .contact-box,
+        .footer-inner {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .contact-box {
+          padding: 28px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ===== HEADER: edit nama yayasan dan menu di sini ===== -->
+    <header>
+      <div class="container nav-inner">
+        <a class="brand" href="#beranda" aria-label="Kembali ke beranda">
+          <span class="brand-mark">YN</span>
+          <span class="brand-name">Yayasan Pendidikan Nusantara</span>
+        </a>
+        <nav aria-label="Navigasi utama">
+          <a href="#beranda">Beranda</a>
+          <a href="#tentang">Tentang</a>
+          <a href="#program">Program</a>
+          <a href="#kontak">Kontak</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <!-- ===== HERO: edit judul, deskripsi, dan tombol di sini ===== -->
+      <section class="hero" id="beranda">
+        <div class="container hero-inner">
+          <div>
+            <p class="eyebrow">Pendidikan untuk masa depan</p>
+            <h1>Membangun generasi cerdas dan berkarakter.</h1>
+            <p>
+              Pendidikan berkualitas yang menumbuhkan potensi, kepedulian, dan
+              keberanian untuk menghadapi masa depan Indonesia.
+            </p>
+            <a class="button" href="#kontak">Daftar Sekarang</a>
+          </div>
+          <div class="hero-illustration" aria-label="Ilustrasi pendidikan">
+            <div class="illustration-card">
+              <div class="illustration-icon">📚</div>
+              <strong>Belajar dengan makna</strong>
+              <span>Ilmu, karakter, dan kreativitas</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== TENTANG: edit isi profil yayasan di sini ===== -->
+      <section class="section" id="tentang">
+        <div class="container about-grid">
+          <div class="about-panel">
+            <span class="big-number">15+</span>
+            <strong>Tahun mendampingi pendidikan Indonesia</strong>
+            <p>
+              Komitmen kami dimulai dari ruang kelas dan tumbuh bersama keluarga
+              Indonesia.
+            </p>
+          </div>
+          <div class="about-copy">
+            <p class="eyebrow">Tentang kami</p>
+            <h2>Tempat setiap anak bertumbuh dan menemukan potensinya.</h2>
+            <p>
+              Yayasan Pendidikan Nusantara menghadirkan lingkungan belajar yang
+              aman, inklusif, dan relevan dengan kebutuhan zaman.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== PROGRAM: edit nama dan deskripsi kartu di sini ===== -->
+      <section class="section programs" id="program">
+        <div class="container">
+          <div class="section-heading">
+            <p class="eyebrow">Program kami</p>
+            <h2>Pilihan pendidikan untuk setiap tahap perkembangan</h2>
+            <p>
+              Program dirancang untuk mengasah kemampuan akademik sekaligus
+              membentuk karakter.
+            </p>
+          </div>
+          <div class="card-grid">
+            <article class="card">
+              <div class="card-icon" aria-hidden="true">🌱</div>
+              <h3>SD Islam Terpadu</h3>
+              <p>
+                Pendidikan dasar yang menanamkan nilai keagamaan, pembentukan
+                karakter, dan literasi digital sejak dini.
+              </p>
+            </article>
+            <article class="card">
+              <div class="card-icon" aria-hidden="true">💡</div>
+              <h3>SMP Nusantara</h3>
+              <p>
+                Pengembangan bakat, logika, dan kepemimpinan dengan kurikulum
+                berbasis proyek dan teknologi modern.
+              </p>
+            </article>
+            <article class="card">
+              <div class="card-icon" aria-hidden="true">🎓</div>
+              <h3>SMA Unggulan</h3>
+              <p>
+                Persiapan menuju perguruan tinggi terbaik, dilengkapi dengan
+                program riset dan pendampingan siswa.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== KONTAK: edit email, alamat, dan teks ajakan di sini ===== -->
+      <section class="section" id="kontak">
+        <div class="container">
+          <div class="contact-box">
+            <div>
+              <h2>Siap memulai perjalanan belajar?</h2>
+              <p>
+                Hubungi kami untuk informasi pendaftaran dan kunjungan sekolah.
+              </p>
+            </div>
+            <a class="button" href="mailto:info@ypn.or.id">Hubungi Kami</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="container footer-inner">
+        <p>&copy; 2026 Yayasan Pendidikan Nusantara.</p>
+        <p>Jl. Pendidikan No. 123, Jakarta · info@ypn.or.id</p>
+      </div>
+    </footer>
+  </body>
+</html>
