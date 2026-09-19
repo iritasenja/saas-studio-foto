@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Perbaikan typo pada content viewport -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Belajar Pemrograman</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- HEADER & NAVIGASI -->
+    <header>
+      <div class="container navbar">
+        <div class="logo">DevBelajar</div>
+        <nav>
+          <a href="#hero">Home</a>
+          <a href="#fitur">Fitur</a>
+          <a href="#kontak">Kontak</a>
+        </nav>
+      </div>
+    </header>
+
+    <!-- KONTEN UTAMA -->
+    <main>
+      <!-- Section 1: Hero Banner -->
+      <section id="hero" class="hero-section">
+        <div class="container text-center">
+          <h1>Mulai Belajar Coding dari Nol</h1>
+          <p>
+            Kuasai HTML, CSS, dan JavaScript untuk membangun karier impianmu
+            sebagai Web Developer.
+          </p>
+          <a href="#kontak" class="btn-primary">Daftar Sekarang</a>
+        </div>
+      </section>
+
+      <!-- Section 2: Fitur / Keunggulan -->
+      <section id="fitur" class="fitur-section">
+        <div class="container">
+          <h2 class="section-title">Mengapa Belajar Bersama Kami?</h2>
+          <div class="grid-fitur">
+            <div class="card">
+              <h3>Kurikulum Praktis</h3>
+              <p>
+                Materi pembelajaran disusun secara runut dan berfokus pada
+                kebutuhan industri saat ini.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Mentor Berpengalaman</h3>
+              <p>
+                Bimbingan langsung dari para praktisi dan software engineer
+                profesional.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Proyek Riil</h3>
+              <p>
+                Membangun portofolio nyata yang siap digunakan untuk melamar
+                pekerjaan.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 3: Kontak / Hubungi Kami -->
+      <section id="kontak" class="kontak-section">
+        <div class="container form-container">
+          <h2 class="section-title">Hubungi Kami</h2>
+          <form>
+            <div class="form-group">
+              <label for="nama">Nama Lengkap</label>
+              <input
+                type="text"
+                id="nama"
+                placeholder="Masukkan nama Anda"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="email">Alamat Email</label>
+              <input
+                type="email"
+                id="email"
+                placeholder="Masukkan email Anda"
+                required
+              />
+            </div>
+            <button type="submit" class="btn-submit">Kirim Pesan</button>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <!-- FOOTER -->
+    <footer>
+      <div class="container text-center">
+        <p>&copy; 2026 DevBelajar. All rights reserved.</p>
+      </div>
+    </footer>
+  </body>
+</html>
