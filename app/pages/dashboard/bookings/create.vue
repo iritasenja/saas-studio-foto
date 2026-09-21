@@ -241,7 +241,7 @@ const canSubmit = computed(() => {
     Boolean(form.customer_id) &&
     Boolean(form.starts_at) &&
     Boolean(form.start_time) &&
-    Boolean(form.room_id) &&
+    // Boolean(form.room_id) &&
     form.participant_count > 0
   );
 });
@@ -482,10 +482,10 @@ async function onSubmit() {
     return;
   }
 
-  if (!form.room_id) {
-    submitError.value = "Ruangan studio wajib dipilih.";
-    return;
-  }
+  // if (!form.room_id) {
+  //   submitError.value = "Ruangan studio wajib dipilih.";
+  //   return;
+  // }
 
   if (!form.starts_at || !form.start_time) {
     submitError.value = "Tanggal dan jam booking wajib diisi.";
@@ -822,18 +822,18 @@ onMounted(async () => {
               <div>
                 <h2 class="font-semibold">Ruangan Studio</h2>
                 <p class="text-sm text-muted-foreground">
-                  Pilih ruangan studio untuk sesi foto.
+                  Pilih ruangan studio jika sesi dilakukan di studio.
                 </p>
               </div>
             </template>
 
             <div>
-              <UFormField label="Ruangan Studio" required>
+              <UFormField label="Ruangan Studio">
                 <USelect
                   v-model="form.room_id"
                   :items="roomOptions"
                   :disabled="roomOptions.length === 0"
-                  placeholder="Pilih ruangan studio..."
+                  placeholder="Tidak menggunakan ruangan studio"
                   class="w-full"
                 />
               </UFormField>
