@@ -1,3 +1,5 @@
+-- update 21 09 2026
+
 -- DROP SCHEMA public;
 
 CREATE SCHEMA public AUTHORIZATION pg_database_owner;
@@ -328,6 +330,92 @@ ALTER TABLE public.services OWNER TO postgres;
 GRANT ALL ON TABLE public.services TO postgres;
 GRANT ALL ON TABLE public.services TO authenticated;
 GRANT TRIGGER, MAINTAIN, REFERENCES, TRUNCATE ON TABLE public.services TO service_role;
+
+
+-- public.studio_business_hours definition
+
+-- Drop table
+
+-- DROP TABLE public.studio_business_hours;
+
+CREATE TABLE public.studio_business_hours ( id uuid DEFAULT gen_random_uuid() NOT NULL, tenant_id uuid NOT NULL, day_of_week int2 NOT NULL, open_time time NULL, close_time time NULL, start_breaktime time NULL, end_breaktime time NULL, is_day_off bool DEFAULT false NOT NULL, created_at timestamptz DEFAULT now() NOT NULL, updated_at timestamptz DEFAULT now() NOT NULL, CONSTRAINT studio_business_hours_break_check CHECK ((((start_breaktime IS NULL) AND (end_breaktime IS NULL)) OR ((start_breaktime IS NOT NULL) AND (end_breaktime IS NOT NULL) AND (start_breaktime < end_breaktime) AND (start_breaktime >= open_time) AND (end_breaktime <= close_time) AND (is_day_off = false)))), CONSTRAINT studio_business_hours_day_of_week_check CHECK (((day_of_week >= 0) AND (day_of_week <= 6))), CONSTRAINT studio_business_hours_open_close_check CHECK ((((is_day_off = true) AND (open_time IS NULL) AND (close_time IS NULL) AND (start_breaktime IS NULL) AND (end_breaktime IS NULL)) OR ((is_day_off = false) AND (open_time IS NOT NULL) AND (close_time IS NOT NULL) AND (close_time > open_time)))), CONSTRAINT studio_business_hours_pkey PRIMARY KEY (id), CONSTRAINT studio_business_hours_tenant_day_key UNIQUE (tenant_id, day_of_week), CONSTRAINT studio_business_hours_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE);
+CREATE INDEX idx_studio_business_hours_tenant ON public.studio_business_hours USING btree (tenant_id);
+ALTER TABLE public.studio_business_hours ENABLE ROW LEVEL SECURITY;
+
+-- Table Policies
+
+CREATE POLICY studio_business_hours_delete ON public.studio_business_hours
+ AS PERMISSIVE
+ FOR DELETE
+ TO authenticated
+ USING (is_tenant_member(tenant_id));
+CREATE POLICY studio_business_hours_insert ON public.studio_business_hours
+ AS PERMISSIVE
+ FOR INSERT
+ TO authenticated
+ WITH CHECK (is_tenant_member(tenant_id));
+CREATE POLICY studio_business_hours_select ON public.studio_business_hours
+ AS PERMISSIVE
+ FOR SELECT
+ TO authenticated
+ USING (is_tenant_member(tenant_id));
+CREATE POLICY studio_business_hours_update ON public.studio_business_hours
+ AS PERMISSIVE
+ FOR UPDATE
+ TO authenticated
+ USING (is_tenant_member(tenant_id))
+ WITH CHECK (is_tenant_member(tenant_id));
+
+-- Permissions
+
+ALTER TABLE public.studio_business_hours OWNER TO postgres;
+GRANT ALL ON TABLE public.studio_business_hours TO postgres;
+GRANT TRIGGER, MAINTAIN, REFERENCES, TRUNCATE ON TABLE public.studio_business_hours TO anon;
+GRANT ALL ON TABLE public.studio_business_hours TO authenticated;
+GRANT TRIGGER, MAINTAIN, REFERENCES, TRUNCATE ON TABLE public.studio_business_hours TO service_role;
+
+
+-- public.studio_day_off_events definition
+
+-- Drop table
+
+-- DROP TABLE public.studio_day_off_events;
+
+CREATE TABLE public.studio_day_off_events ( id uuid DEFAULT gen_random_uuid() NOT NULL, tenant_id uuid NOT NULL, "name" text NOT NULL, start_date date NOT NULL, end_date date NOT NULL, notes text NULL, created_at timestamptz DEFAULT now() NOT NULL, updated_at timestamptz DEFAULT now() NOT NULL, CONSTRAINT studio_day_off_events_date_check CHECK ((end_date >= start_date)), CONSTRAINT studio_day_off_events_pkey PRIMARY KEY (id), CONSTRAINT studio_day_off_events_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE);
+CREATE INDEX idx_studio_day_off_events_tenant_dates ON public.studio_day_off_events USING btree (tenant_id, start_date, end_date);
+ALTER TABLE public.studio_day_off_events ENABLE ROW LEVEL SECURITY;
+
+-- Table Policies
+
+CREATE POLICY studio_day_off_events_delete ON public.studio_day_off_events
+ AS PERMISSIVE
+ FOR DELETE
+ TO authenticated
+ USING (is_tenant_member(tenant_id));
+CREATE POLICY studio_day_off_events_insert ON public.studio_day_off_events
+ AS PERMISSIVE
+ FOR INSERT
+ TO authenticated
+ WITH CHECK (is_tenant_member(tenant_id));
+CREATE POLICY studio_day_off_events_select ON public.studio_day_off_events
+ AS PERMISSIVE
+ FOR SELECT
+ TO authenticated
+ USING (is_tenant_member(tenant_id));
+CREATE POLICY studio_day_off_events_update ON public.studio_day_off_events
+ AS PERMISSIVE
+ FOR UPDATE
+ TO authenticated
+ USING (is_tenant_member(tenant_id))
+ WITH CHECK (is_tenant_member(tenant_id));
+
+-- Permissions
+
+ALTER TABLE public.studio_day_off_events OWNER TO postgres;
+GRANT ALL ON TABLE public.studio_day_off_events TO postgres;
+GRANT TRIGGER, MAINTAIN, REFERENCES, TRUNCATE ON TABLE public.studio_day_off_events TO anon;
+GRANT ALL ON TABLE public.studio_day_off_events TO authenticated;
+GRANT TRIGGER, MAINTAIN, REFERENCES, TRUNCATE ON TABLE public.studio_day_off_events TO service_role;
 
 
 -- public.studio_profiles definition
