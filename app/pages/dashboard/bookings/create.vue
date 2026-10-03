@@ -13,6 +13,7 @@ type Room = Database["public"]["Tables"]["studio_rooms"]["Row"];
 
 const supabase = useSupabaseClient<Database>();
 const router = useRouter();
+const route = useRoute();
 
 // ======================================================
 // COMPOSABLES
@@ -59,7 +60,6 @@ const newCustomerForm = reactive({
   notes: "",
 });
 
-// Customer aktif yang dipilih
 const selectedCustomer = computed<Customer | null>(() => {
   if (!form.customer_id) return null;
 
@@ -68,7 +68,6 @@ const selectedCustomer = computed<Customer | null>(() => {
   );
 });
 
-// Customer yang tampil berdasarkan pencarian
 const filteredCustomers = computed(() => {
   const keyword = customerSearch.value.trim().toLowerCase();
 
@@ -97,7 +96,7 @@ const customerOptions = computed(() =>
 );
 
 // ======================================================
-// FORM BOOKING
+// DATE / TIME HELPERS
 // ======================================================
 
 const now = new Date();
@@ -119,6 +118,22 @@ function formatTimeForInput(date: Date) {
 
 const defaultStart = new Date(now.getTime() + 60 * 60 * 1000);
 
+// ======================================================
+// ROUTE QUERY
+// ======================================================
+
+function normalizeRouteValue(value: unknown) {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return typeof value === "string" ? value : null;
+}
+
+// ======================================================
+// FORM
+// ======================================================
+
 const form = reactive({
   customer_id: "",
   package_id: "",
@@ -132,9 +147,77 @@ const form = reactive({
 
   notes: "",
 
-  status: "pending" as Database["public"]["Enums"]["booking_status"],
-  payment_status: "unpaid" as Database["public"]["Enums"]["payment_status"],
+  // ----------------------------------------------------
+  // Invoice
+  // ----------------------------------------------------
+
+  invoice_due_at: formatDateForInput(defaultStart),
+  invoice_notes: "",
 });
+
+// ======================================================
+// ROUTE HYDRATION
+// ======================================================
+
+function hydrateFormFromRouteQuery() {
+  const bookingDate = normalizeRouteValue(
+    route.query.booking_date ?? route.query.date ?? route.query.selected_date,
+  );
+
+  const startTime = normalizeRouteValue(
+    route.query.start_time ?? route.query.time,
+  );
+
+  const roomId = normalizeRouteValue(
+    route.query.room_id ?? route.query.selected_room_id,
+  );
+
+  if (bookingDate) {
+    form.starts_at = bookingDate;
+
+    // Jika due date belum pernah diedit, ikuti tanggal booking.
+    if (!form.invoice_due_at) {
+      form.invoice_due_at = bookingDate;
+    }
+  }
+
+  if (startTime) {
+    form.start_time = startTime;
+  }
+
+  if (roomId) {
+    const isRoomAvailable = rooms.value.some((room) => room.id === roomId);
+
+    if (isRoomAvailable) {
+      form.room_id = roomId;
+    }
+  }
+
+  const detailParts = [
+    bookingDate ? `Tanggal: ${bookingDate}` : null,
+    startTime ? `Jam: ${startTime}` : null,
+    roomId && rooms.value.some((room) => room.id === roomId)
+      ? `Ruangan: ${
+          rooms.value.find((room) => room.id === roomId)?.name ?? "Studio"
+        }`
+      : null,
+  ].filter(Boolean) as string[];
+
+  if (!detailParts.length) {
+    return;
+  }
+
+  const watchText = `Watch: ${detailParts.join(" • ")}`;
+
+  if (!form.notes.trim()) {
+    form.notes = watchText;
+    return;
+  }
+
+  if (!form.notes.includes("Watch:")) {
+    form.notes = `${form.notes.trim()} | ${watchText}`;
+  }
+}
 
 // ======================================================
 // PRICE
@@ -207,6 +290,62 @@ const totalAmount = computed(() => {
 });
 
 // ======================================================
+// INVOICE ITEMS
+// ======================================================
+//
+// Invoice item dibuat otomatis dari pricing booking.
+// Tidak perlu user memasukkan ulang harga.
+//
+// subtotal invoice:
+//   package
+//   + extra people
+//   + extra duration
+//
+// discount dan tax dikirim terpisah ke RPC.
+//
+
+const invoiceItems = computed(() => {
+  const items: Array<{
+    description: string;
+    quantity: number;
+    unit_price: number;
+  }> = [];
+
+  if (selectedPackage.value) {
+    items.push({
+      description: `Paket ${selectedPackage.value.name}`,
+      quantity: 1,
+      unit_price: basePrice.value,
+    });
+  } else {
+    // Invoice tetap membutuhkan minimal satu item.
+    items.push({
+      description: "Sesi foto",
+      quantity: 1,
+      unit_price: 0,
+    });
+  }
+
+  if (extraPeople.value > 0 && extraPersonPrice.value > 0) {
+    items.push({
+      description: "Tambahan peserta",
+      quantity: extraPeople.value,
+      unit_price: extraPersonPrice.value,
+    });
+  }
+
+  if (extraDurationMinutes.value > 0 && extraDurationPricePerMinute.value > 0) {
+    items.push({
+      description: "Tambahan durasi",
+      quantity: extraDurationMinutes.value,
+      unit_price: extraDurationPricePerMinute.value,
+    });
+  }
+
+  return items;
+});
+
+// ======================================================
 // ROOM OPTIONS
 // ======================================================
 
@@ -241,8 +380,8 @@ const canSubmit = computed(() => {
     Boolean(form.customer_id) &&
     Boolean(form.starts_at) &&
     Boolean(form.start_time) &&
-    // Boolean(form.room_id) &&
-    form.participant_count > 0
+    form.participant_count > 0 &&
+    form.duration_minutes > 0
   );
 });
 
@@ -300,7 +439,8 @@ const selectedRoom = computed<Room | null>(() => {
   return rooms.value.find((room) => room.id === form.room_id) ?? null;
 });
 
-// Ketika package berubah, sesuaikan durasi dan jumlah peserta
+// Ketika package berubah, sesuaikan default durasi
+// dan jumlah peserta.
 watch(
   () => form.package_id,
   () => {
@@ -308,13 +448,10 @@ watch(
 
     if (!packageData) return;
 
-    // Package menjadi default durasi.
-    // Petugas masih boleh mengubahnya secara manual setelah ini.
     if (packageData.base_duration_minutes != null) {
       form.duration_minutes = Number(packageData.base_duration_minutes);
     }
 
-    // Default jumlah peserta mengikuti package.
     if (packageData.included_people != null) {
       form.participant_count = Number(packageData.included_people);
     }
@@ -371,13 +508,8 @@ async function saveNewCustomer() {
       return;
     }
 
-    // Langsung pilih customer yang baru dibuat
     form.customer_id = customer.id;
-
-    // Bersihkan pencarian agar customer baru terlihat
     customerSearch.value = "";
-
-    // Tutup modal
     isCreatingCustomer.value = false;
   } catch (error) {
     console.error("Create customer from booking error:", error);
@@ -390,23 +522,28 @@ async function saveNewCustomer() {
 }
 
 // ======================================================
-// BOOKING
+// BOOKING DATE / TIME
 // ======================================================
 
-// helper representasi timezone
 function toLocalISOString(date: Date) {
   const offset = -date.getTimezoneOffset();
 
   const sign = offset >= 0 ? "+" : "-";
+
   const hours = String(Math.floor(Math.abs(offset) / 60)).padStart(2, "0");
+
   const minutes = String(Math.abs(offset) % 60).padStart(2, "0");
 
   const year = date.getFullYear();
+
   const month = String(date.getMonth() + 1).padStart(2, "0");
+
   const day = String(date.getDate()).padStart(2, "0");
 
   const hour = String(date.getHours()).padStart(2, "0");
+
   const minute = String(date.getMinutes()).padStart(2, "0");
+
   const second = String(date.getSeconds()).padStart(2, "0");
 
   return `${year}-${month}-${day}T${hour}:${minute}:${second}${sign}${hours}:${minutes}`;
@@ -461,11 +598,34 @@ const endTime = computed(() => {
   });
 });
 
+// ======================================================
+// INVOICE DUE DATE
+// ======================================================
+
+function buildInvoiceDueAt() {
+  if (!form.invoice_due_at) {
+    return null;
+  }
+
+  const dueDate = new Date(`${form.invoice_due_at}T23:59:59`);
+
+  if (Number.isNaN(dueDate.getTime())) {
+    return null;
+  }
+
+  return toLocalISOString(dueDate);
+}
+
+// ======================================================
+// SUBMIT
+// ======================================================
+
 async function onSubmit() {
   submitError.value = null;
 
   const startsAt = buildStartsAt();
   const endsAt = buildEndsAt();
+  const invoiceDueAt = buildInvoiceDueAt();
 
   if (!tenantId.value) {
     submitError.value = "Tenant aktif tidak ditemukan.";
@@ -482,23 +642,29 @@ async function onSubmit() {
     return;
   }
 
-  // if (!form.room_id) {
-  //   submitError.value = "Ruangan studio wajib dipilih.";
-  //   return;
-  // }
-
   if (!form.starts_at || !form.start_time) {
     submitError.value = "Tanggal dan jam booking wajib diisi.";
     return;
   }
 
-  if (form.participant_count < 1) {
+  if (!form.participant_count || form.participant_count < 1) {
     submitError.value = "Jumlah peserta minimal 1 orang.";
+    return;
+  }
+
+  if (!form.duration_minutes || form.duration_minutes <= 0) {
+    submitError.value = "Durasi booking harus lebih dari 0 menit.";
     return;
   }
 
   if (maxPeople.value !== null && form.participant_count > maxPeople.value) {
     submitError.value = `Jumlah peserta melebihi batas maksimal paket (${maxPeople.value} orang).`;
+
+    return;
+  }
+
+  if (!invoiceItems.value.length) {
+    submitError.value = "Invoice membutuhkan minimal satu item.";
     return;
   }
 
@@ -506,6 +672,7 @@ async function onSubmit() {
 
   const booking = await addBooking({
     customer_id: form.customer_id,
+
     package_id: form.package_id || null,
     room_id: form.room_id || null,
 
@@ -514,24 +681,40 @@ async function onSubmit() {
 
     participant_count: form.participant_count,
 
-    status: "pending",
-    payment_status: "unpaid",
-
     subtotal: subtotal.value,
+
     discount_amount: Number(discountAmount.value || 0),
+
     tax_amount: Number(taxAmount.value || 0),
+
     total_amount: totalAmount.value,
 
     notes: form.notes.trim() || null,
+
+    create_invoice: true,
+
+    invoice_due_at: invoiceDueAt,
+
+    invoice_notes: form.invoice_notes.trim() || null,
+
+    invoice_items: invoiceItems.value,
   });
 
   if (!booking) {
     submitError.value = bookingError.value ?? "Gagal membuat booking.";
+
     return;
   }
 
-  // addBooking() sudah mengambil detail booking
-  // setelah RPC create_booking berhasil.
+  // addBooking() sudah menjalankan:
+  // create_booking_transaction()
+  //
+  // sehingga booking + invoice
+  // sudah dibuat dalam satu transaksi database.
+  //
+  // Pembayaran dicatat setelah booking berhasil dibuat,
+  // melalui halaman detail booking.
+
   await router.push(`/dashboard/bookings/${booking.id}`);
 }
 
@@ -551,8 +734,31 @@ function formatCurrency(value: number) {
 // INITIAL LOAD
 // ======================================================
 
+watch(
+  () => rooms.value.length,
+  () => {
+    hydrateFormFromRouteQuery();
+  },
+  {
+    flush: "post",
+  },
+);
+
+watch(
+  () => route.query,
+  () => {
+    hydrateFormFromRouteQuery();
+  },
+  {
+    immediate: true,
+    deep: true,
+  },
+);
+
 onMounted(async () => {
   await Promise.all([loadCustomers(), loadMasterData()]);
+
+  hydrateFormFromRouteQuery();
 });
 </script>
 
@@ -587,6 +793,7 @@ onMounted(async () => {
               <div class="flex items-center justify-between gap-4">
                 <div>
                   <h2 class="font-semibold">Customer</h2>
+
                   <p class="text-sm text-muted-foreground">
                     Pilih customer yang melakukan sesi foto.
                   </p>
@@ -606,7 +813,6 @@ onMounted(async () => {
             </template>
 
             <div class="space-y-4">
-              <!-- Search customer -->
               <UFormField label="Cari Customer">
                 <UInput
                   v-model="customerSearch"
@@ -617,7 +823,6 @@ onMounted(async () => {
                 />
               </UFormField>
 
-              <!-- Customer selector -->
               <UFormField label="Customer" required>
                 <USelect
                   v-model="form.customer_id"
@@ -627,7 +832,6 @@ onMounted(async () => {
                 />
               </UFormField>
 
-              <!-- Tidak ditemukan -->
               <div
                 v-if="customerSearch.trim() && filteredCustomers.length === 0"
                 class="rounded-lg border border-dashed p-4 text-center"
@@ -651,7 +855,6 @@ onMounted(async () => {
                 </UButton>
               </div>
 
-              <!-- Customer terpilih -->
               <div
                 v-if="selectedCustomer"
                 class="rounded-lg border bg-muted/30 p-4"
@@ -707,6 +910,7 @@ onMounted(async () => {
             <template #header>
               <div>
                 <h2 class="font-semibold">Jadwal Sesi</h2>
+
                 <p class="text-sm text-muted-foreground">
                   Tentukan tanggal, jam, dan durasi sesi foto.
                 </p>
@@ -750,6 +954,7 @@ onMounted(async () => {
             <template #header>
               <div>
                 <h2 class="font-semibold">Paket & Sesi</h2>
+
                 <p class="text-sm text-muted-foreground">
                   Tentukan paket dan jumlah peserta.
                 </p>
@@ -776,7 +981,6 @@ onMounted(async () => {
               </UFormField>
             </div>
 
-            <!-- Package information -->
             <div
               v-if="selectedPackage"
               class="mt-4 rounded-lg border bg-muted/30 p-4"
@@ -784,6 +988,7 @@ onMounted(async () => {
               <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 <div>
                   <p class="text-xs text-muted-foreground">Harga Dasar</p>
+
                   <p class="font-medium">
                     {{ formatCurrency(basePrice) }}
                   </p>
@@ -791,16 +996,19 @@ onMounted(async () => {
 
                 <div>
                   <p class="text-xs text-muted-foreground">Durasi Dasar</p>
+
                   <p class="font-medium">{{ baseDuration }} menit</p>
                 </div>
 
                 <div>
                   <p class="text-xs text-muted-foreground">Termasuk</p>
+
                   <p class="font-medium">{{ includedPeople }} orang</p>
                 </div>
 
                 <div>
                   <p class="text-xs text-muted-foreground">Maksimal</p>
+
                   <p class="font-medium">
                     {{
                       maxPeople === null
@@ -814,37 +1022,36 @@ onMounted(async () => {
           </UCard>
 
           <!-- ================================================= -->
-          <!-- RUANGAN STUDIO -->
+          <!-- RUANGAN -->
           <!-- ================================================= -->
 
           <UCard>
             <template #header>
               <div>
                 <h2 class="font-semibold">Ruangan Studio</h2>
+
                 <p class="text-sm text-muted-foreground">
                   Pilih ruangan studio jika sesi dilakukan di studio.
                 </p>
               </div>
             </template>
 
-            <div>
-              <UFormField label="Ruangan Studio">
-                <USelect
-                  v-model="form.room_id"
-                  :items="roomOptions"
-                  :disabled="roomOptions.length === 0"
-                  placeholder="Tidak menggunakan ruangan studio"
-                  class="w-full"
-                />
-              </UFormField>
+            <UFormField label="Ruangan Studio">
+              <USelect
+                v-model="form.room_id"
+                :items="roomOptions"
+                :disabled="roomOptions.length === 0"
+                placeholder="Tidak menggunakan ruangan studio"
+                class="w-full"
+              />
+            </UFormField>
 
-              <p
-                v-if="roomOptions.length === 0"
-                class="mt-3 text-xs text-muted-foreground"
-              >
-                Belum ada ruangan studio yang tersedia untuk tenant ini.
-              </p>
-            </div>
+            <p
+              v-if="roomOptions.length === 0"
+              class="mt-3 text-xs text-muted-foreground"
+            >
+              Belum ada ruangan studio yang tersedia untuk tenant ini.
+            </p>
           </UCard>
 
           <!-- ================================================= -->
@@ -861,6 +1068,7 @@ onMounted(async () => {
             <div class="space-y-3">
               <div class="flex justify-between gap-4 text-sm">
                 <span>Harga Paket</span>
+
                 <span>
                   {{ formatCurrency(basePrice) }}
                 </span>
@@ -871,6 +1079,7 @@ onMounted(async () => {
                 class="flex justify-between gap-4 text-sm"
               >
                 <span> Extra {{ extraPeople }} peserta </span>
+
                 <span>
                   {{ formatCurrency(extraPeopleAmount) }}
                 </span>
@@ -880,10 +1089,8 @@ onMounted(async () => {
                 v-if="extraDurationAmount > 0"
                 class="flex justify-between gap-4 text-sm"
               >
-                <span>
-                  Extra durasi ({{ extraDurationMinutes }}
-                  menit)
-                </span>
+                <span> Extra durasi ({{ extraDurationMinutes }} menit) </span>
+
                 <span>
                   {{ formatCurrency(extraDurationAmount) }}
                 </span>
@@ -893,6 +1100,7 @@ onMounted(async () => {
                 class="flex justify-between gap-4 border-t border-accented pt-3 font-medium"
               >
                 <span>Subtotal</span>
+
                 <span>
                   {{ formatCurrency(subtotal) }}
                 </span>
@@ -922,6 +1130,7 @@ onMounted(async () => {
                 class="flex justify-between gap-4 border-t border-accented pt-4 text-lg font-semibold"
               >
                 <span>Total</span>
+
                 <span>
                   {{ formatCurrency(totalAmount) }}
                 </span>
@@ -930,13 +1139,92 @@ onMounted(async () => {
           </UCard>
 
           <!-- ================================================= -->
-          <!-- CATATAN -->
+          <!-- INVOICE -->
           <!-- ================================================= -->
 
           <UCard>
             <template #header>
               <div>
-                <h2 class="font-semibold">Catatan</h2>
+                <h2 class="font-semibold">Invoice</h2>
+
+                <p class="text-sm text-muted-foreground">
+                  Invoice akan otomatis dibuat dan diterbitkan bersama booking.
+                </p>
+              </div>
+            </template>
+
+            <div class="space-y-5">
+              <div class="rounded-lg border bg-muted/30 p-4">
+                <div class="flex items-start gap-3">
+                  <UIcon name="i-lucide-file-text" class="mt-0.5 size-5" />
+
+                  <div>
+                    <p class="font-medium">Invoice otomatis</p>
+
+                    <p class="mt-1 text-sm text-muted-foreground">
+                      Item invoice diambil langsung dari harga paket, tambahan
+                      peserta, dan tambahan durasi. Diskon dan pajak diterapkan
+                      sebagai komponen invoice.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Invoice items preview -->
+              <div>
+                <p class="mb-3 text-sm font-medium">Item Invoice</p>
+
+                <div class="divide-y rounded-lg border">
+                  <div
+                    v-for="(item, index) in invoiceItems"
+                    :key="`${item.description}-${index}`"
+                    class="flex items-center justify-between gap-4 p-3"
+                  >
+                    <div>
+                      <p class="text-sm font-medium">
+                        {{ item.description }}
+                      </p>
+
+                      <p class="text-xs text-muted-foreground">
+                        {{ item.quantity }} ×
+                        {{ formatCurrency(item.unit_price) }}
+                      </p>
+                    </div>
+
+                    <p class="text-sm font-medium">
+                      {{ formatCurrency(item.quantity * item.unit_price) }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <UFormField label="Jatuh Tempo">
+                <UInput
+                  v-model="form.invoice_due_at"
+                  type="date"
+                  class="w-full"
+                />
+              </UFormField>
+
+              <UFormField label="Catatan Invoice">
+                <UTextarea
+                  v-model="form.invoice_notes"
+                  placeholder="Catatan yang akan disimpan pada invoice..."
+                  :rows="3"
+                  class="w-full"
+                />
+              </UFormField>
+            </div>
+          </UCard>
+
+          <!-- ================================================= -->
+          <!-- CATATAN BOOKING -->
+          <!-- ================================================= -->
+
+          <UCard>
+            <template #header>
+              <div>
+                <h2 class="font-semibold">Catatan Booking</h2>
               </div>
             </template>
 
@@ -962,14 +1250,22 @@ onMounted(async () => {
               <div>
                 <p class="font-medium">
                   Booking akan dibuat sebagai
-                  <UBadge color="warning" variant="subtle"> Pending </UBadge>
+
+                  <UBadge color="warning" variant="subtle" class="ml-1">
+                    Pending
+                  </UBadge>
                 </p>
 
                 <p class="mt-1 text-sm text-muted-foreground">
-                  Slot belum dianggap resmi terkonfirmasi. Setelah customer
-                  melakukan pembayaran, staff dapat mencatat pembayaran dan
-                  mengubah booking menjadi
-                  <strong>Confirmed</strong>.
+                  Booking baru belum memiliki pembayaran. Setelah booking
+                  berhasil dibuat, pembayaran dapat dicatat dari halaman detail
+                  booking.
+                </p>
+
+                <p class="mt-2 text-sm text-muted-foreground">
+                  Invoice akan otomatis dibuat dan diterbitkan bersama booking.
+                  Status pembayaran akan mengikuti pembayaran yang tercatat
+                  setelahnya.
                 </p>
               </div>
             </div>
